@@ -6,138 +6,140 @@ import curses
 from curses import KEY_DOWN, KEY_EXIT, KEY_LEFT, KEY_RIGHT, KEY_UP
 from random import randint
 
-# Initialization of curses
-curses.initscr()
-
-# Constants
 KEY_ESC = 27
-WINDOW_LINES = 20
-# WINDOW_LINES = curses.LINES
-WINDOW_COLS = 40
-# WINDOW_COLS = curses.COLS
-WALLS_ENABLED = False
-
-# Init values
-key = KEY_RIGHT
-score = 0
-snake = [[4, 10], [4, 9], [4, 8]]  # snake coordinates
-food = [10, 20]  # food coordinates
 
 
-def init():
-    window = curses.newwin(WINDOW_LINES, WINDOW_COLS, 0, 0)
+class SnakeGame:
+    def __init__(self, window_width=20, window_height=40, walls_enabled=False):
+        self.score = 0
+        self.key = None
+        self.window_size = {"width": window_width, "height": window_height}
+        self.walls_enabled = walls_enabled
 
-    curses.noecho()  # disable automatic echoing of keys to the screen
-    curses.cbreak()  # react to keys instantly w/o requiring the Enter key to be pressed
-    window.keypad(True)  # let curses automatically parse keys and return them as e.g. KEY_DOWN, ...
-    curses.curs_set(0)
-    window.border(0)
-    window.nodelay(1)
+    def start(self):
+        self.init_window()
+        self.snake = [[4, 10], [4, 9], [4, 8]]
+        self.food = [10, 20]
+        self.draw()
+        self.loop()
 
-    # Display/prints the food
-    window.addch(food[0], food[1], '*')
+    def init_window(self):
+        # Initialization of curses
+        curses.initscr()
 
-    return window
+        window = curses.newwin(self.window_size["width"], self.window_size["height"], 0, 0)
 
-
-def directionIsInvalid(prevKey, key):
-    if prevKey == KEY_UP or prevKey == KEY_DOWN:
-        return key == KEY_DOWN or key == KEY_UP
-    elif prevKey == KEY_LEFT or prevKey == KEY_RIGHT:
-        return key == KEY_LEFT or key == KEY_RIGHT
-
-
-def game_loop(window):
-    global key
-    global score
-    global snake
-    global food
-
-    # While Esc key is not pressed
-    while key != KEY_ESC:
-        window.border(0)
-
-        # Printing 'Score'
-        window.addstr(0, 2, ' Score: ' + str(score) + ' ')
+        curses.noecho()  # disable automatic echoing of keys to the screen
+        curses.cbreak()  # react to keys instantly w/o requiring the Enter key to be pressed
+        window.keypad(True)  # let curses automatically parse keys and return them as e.g. KEY_DOWN, ...
+        curses.curs_set(0)  # 0, 1, or 2, for invisible, normal, or very visible
+        window.nodelay(True)  # make getch non-blocking
 
         # Increases the speed of Snake as its length increases
-        window.timeout(round(100 - (len(snake) / 5 + len(snake) / 10) % 120))
+        self.window.timeout(round(100 - (len(self.snake) / 5 + len(self.snake) / 10) % 120))
+        self.window = window
 
-        # Previous key pressed
-        prevKey = key
-        event = window.getch()
-        key = key if event == -1 else event
+    def draw(self):
+        self.window.clear()
+        self.window.border(0)
+        self.window.addstr(0, 2, ' Score: ' + str(self.score) + ' ')
 
-        # If SPACE BAR is pressed, wait for another one (Pause/Resume)
-        if key == ord(' '):
-            key = -1
-            while key != ord(' '):
-                key = window.getch()
-            key = prevKey
-            continue
+        self.window.addch(self.food[0], self.food[1], '*')
 
-        # If an invalid key is pressed
-        if key not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESC] or directionIsInvalid(prevKey, key):
-            key = prevKey
+        for i, body_point in enumerate(self.snake):
+            self.window.addch(body_point[0], body_point[1], '@')
 
-        # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
-        # in the next diretion and, if the snake didn't eat, also remove a point from the tail. This is taken care of later at [1].
-        snake.insert(0, [snake[0][0] + (key == KEY_DOWN and 1) + (key == KEY_UP and -1), snake[0][1] + (key == KEY_LEFT and -1) + (key == KEY_RIGHT and 1)])
+    def loop(self):
+        while self.key is None:
+            self.key = self.window.getch()
 
-        # Exit if snake crosses the boundaries
-        if WALLS_ENABLED and (snake[0][0] == 0 or snake[0][0] == WINDOW_LINES - 1 or snake[0][1] == 0 or snake[0][1] == WINDOW_COLS - 1):
-            break
+            # If an invalid key is pressed
+            if self.key not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESC]:
+                self.key = None
 
-        # If snake crosses the boundaries, make it enter from the other side
-        if snake[0][0] == 0:
-            snake[0][0] = WINDOW_LINES - 2
-        if snake[0][1] == 0:
-            snake[0][1] = WINDOW_COLS - 2
-        if snake[0][0] == WINDOW_LINES - 1:
-            snake[0][0] = 1
-        if snake[0][1] == WINDOW_COLS - 1:
-            snake[0][1] = 1
+        try:
+            while self.key != KEY_ESC:
+                self.prevKey = self.key
+                newKey = self.window.getch()
+                self.key = self.key if newKey == -1 else newKey
 
-        # If snake runs over itself (excluding pressing the key corresponding to the opposite direction)
-        if snake[0] in snake[1:]:
-            break
+                # If SPACE BAR is pressed, wait for another one (Pause/Resume)
+                if self.key == ord(' '):
+                    self.key = -1
+                    while self.key != ord(' '):
+                        self.key = self.window.getch()
+                    self.key = self.prevKey
+                    continue
 
-        # When snake eats the food
-        if snake[0] == food:
-            food = None
-            score += 1
-            while food is None:
-                # Calculating next food's coordinates
-                food = [randint(1, WINDOW_LINES - 2), randint(1, WINDOW_COLS - 2)]
-                if food in snake:
+                # If an invalid key is pressed
+                if self.key not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESC] or self.directionIsInvalid():
+                    self.key = self.prevKey
+
+                # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
+                # in the next diretion and, if the snake didn't eat, also remove a point from the tail. Done in (1).
+                self.snake.insert(0, [self.snake[0][0] + (self.key == KEY_DOWN and 1) + (self.key == KEY_UP and -1), self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
+
+                # Exit if snake crosses the boundaries
+                if self.walls_enabled and (self.snake[0][0] == 0 or self.snake[0][0] == self.window_size["width"] - 1 or self.snake[0][1] == 0 or self.snake[0][1] == self.window_size["height"] - 1):
+                    break
+
+                # If snake crosses the boundaries, make it enter from the other side
+                if self.snake[0][0] == 0:
+                    self.snake[0][0] = self.window_size["width"] - 2
+                if self.snake[0][1] == 0:
+                    self.snake[0][1] = self.window_size["height"] - 2
+                if self.snake[0][0] == self.window_size["width"] - 1:
+                    self.snake[0][0] = 1
+                if self.snake[0][1] == self.window_size["height"] - 1:
+                    self.snake[0][1] = 1
+
+                # If snake runs over itself
+                if self.snake[0] in self.snake[1:]:
+                    break
+
+                # When snake eats the food
+                if self.snake[0] == self.food:
+                    self.score += 1
                     food = None
-            window.addch(food[0], food[1], '*')
-        else:
-            # [1] If it does not eat the food, length decreases
-            last = snake.pop()
-            window.addch(last[0], last[1], ' ')
-        window.addch(snake[0][0], snake[0][1], '@')
+                    while food is None:
+                        # generate food's coordinates
+                        food = [randint(1, self.window_size["width"] - 2), randint(1, self.window_size["height"] - 2)]
+                        if food in self.snake:
+                            food = None
+                    self.food = food
+                else:
+                    # (1)
+                    self.snake.pop()
 
+                self.draw()
 
-def terminate(window, exception=None):
-    # Correctly terminate curses app
-    curses.nocbreak()
-    window.keypad(False)
-    curses.echo()
+        except Exception as e:
+            self.terminate(e)
 
-    # Restore teminal to its original operating mode
-    curses.endwin()
+        self.terminate()
 
-    if exception is not None:
-        print(exception)
+    def directionIsInvalid(self):
+        if self.prevKey == KEY_UP or self.prevKey == KEY_DOWN:
+            return self.key == KEY_DOWN or self.key == KEY_UP
+        elif self.prevKey == KEY_LEFT or self.prevKey == KEY_RIGHT:
+            return self.key == KEY_LEFT or self.key == KEY_RIGHT
 
-    print("\nScore - " + str(score))
+    def terminate(self, exception=None):
+        # Correctly terminate
+        curses.nocbreak()
+        self.window.keypad(False)
+        curses.echo()
+
+        # Restore teminal to its original operating mode
+        curses.endwin()
+
+        if exception is not None:
+            print(exception)
+
+        print("Game over")
+        print("Score: " + str(self.score))
 
 
 if __name__ == "__main__":
-    try:
-        window = init()
-        game_loop(window)
-        terminate(window)
-    except Exception as e:
-        terminate(window, e)
+    game = SnakeGame()
+    game.start()
