@@ -67,7 +67,10 @@ class SnakeGame:
         self.window.addch(self.food[0], self.food[1], '*')
 
         for i, body_point in enumerate(self.snake):
-            self.window.addch(body_point[0], body_point[1], '@')
+            if i == 0:
+                self.window.addch(body_point[0], body_point[1], '@')
+            else:
+                self.window.addch(body_point[0], body_point[1], 'O')
 
     def loop(self):
         while self.key is None:
