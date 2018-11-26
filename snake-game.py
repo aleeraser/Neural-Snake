@@ -18,8 +18,8 @@ class SnakeGame:
 
     def start(self):
         self.init_window()
-        self.snake = [[4, 10], [4, 9], [4, 8]]
-        self.food = [10, 20]
+        self.init_snake()  # snake = [[4, 10], [4, 9], [4, 8]]
+        self.generate_food()  # food = [10, 20]
         self.draw()
         self.loop()
 
@@ -34,10 +34,30 @@ class SnakeGame:
         window.keypad(True)  # let curses automatically parse keys and return them as e.g. KEY_DOWN, ...
         curses.curs_set(0)  # 0, 1, or 2, for invisible, normal, or very visible
         window.nodelay(True)  # make getch non-blocking
+        # window.border(0)
 
         # Increases the speed of Snake as its length increases
-        self.window.timeout(round(100 - (len(self.snake) / 5 + len(self.snake) / 10) % 120))
+        # self.window.timeout(round(100 - (len(self.snake) / 5 + len(self.snake) / 10) % 120))
+        window.timeout(120)
         self.window = window
+
+    def generate_food(self):
+        food = None
+        while food is None:
+            # generate food's coordinates
+            food = [randint(1, self.window_size["width"] - 2), randint(1, self.window_size["height"] - 2)]
+            if food in self.snake:
+                food = None
+        self.food = food
+
+    def init_snake(self, initial_size=3):
+        head_x = randint(initial_size, self.window_size["width"] - initial_size)
+        head_y = randint(initial_size, self.window_size["height"] - initial_size)
+        self.snake = []
+        vertical = randint(0, 1) == 0
+        for i in range(initial_size):
+            body_point = [head_x + i, head_y] if vertical else [head_x, head_y + i]
+            self.snake.insert(0, body_point)
 
     def draw(self):
         self.window.clear()
@@ -100,13 +120,7 @@ class SnakeGame:
                 # When snake eats the food
                 if self.snake[0] == self.food:
                     self.score += 1
-                    food = None
-                    while food is None:
-                        # generate food's coordinates
-                        food = [randint(1, self.window_size["width"] - 2), randint(1, self.window_size["height"] - 2)]
-                        if food in self.snake:
-                            food = None
-                    self.food = food
+                    self.generate_food()
                 else:
                     # (1)
                     self.snake.pop()
