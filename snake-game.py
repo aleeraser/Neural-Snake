@@ -102,33 +102,18 @@ class SnakeGame:
                     self.key = self.prevKey
 
                 # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
-                # in the next diretion and, if the snake didn't eat, also remove a point from the tail. Done in (1).
+                # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
                 self.snake.insert(0, [self.snake[0][0] + (self.key == KEY_DOWN and 1) + (self.key == KEY_UP and -1), self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
 
-                # Exit if snake crosses the boundaries
-                if self.walls_enabled and (self.snake[0][0] == 0 or self.snake[0][0] == self.window_size["width"] - 1 or self.snake[0][1] == 0 or self.snake[0][1] == self.window_size["height"] - 1):
+                if self.isCollision():
                     break
 
-                # If snake crosses the boundaries, make it enter from the other side
-                if self.snake[0][0] == 0:
-                    self.snake[0][0] = self.window_size["width"] - 2
-                if self.snake[0][1] == 0:
-                    self.snake[0][1] = self.window_size["height"] - 2
-                if self.snake[0][0] == self.window_size["width"] - 1:
-                    self.snake[0][0] = 1
-                if self.snake[0][1] == self.window_size["height"] - 1:
-                    self.snake[0][1] = 1
-
-                # If snake runs over itself
-                if self.snake[0] in self.snake[1:]:
-                    break
-
-                # When snake eats the food
+                # When the snake eats the food
                 if self.snake[0] == self.food:
                     self.score += 1
                     self.generate_food()
                 else:
-                    # (1)
+                    # [1]
                     self.snake.pop()
 
                 self.draw()
@@ -143,6 +128,27 @@ class SnakeGame:
             return self.key == KEY_UP or self.key == KEY_DOWN
         elif self.prevKey == KEY_LEFT or self.prevKey == KEY_RIGHT:
             return self.key == KEY_LEFT or self.key == KEY_RIGHT
+
+    def isCollision(self):
+        # Exit if snake crosses the boundaries
+        if self.walls_enabled and (self.snake[0][0] == 0 or self.snake[0][0] == self.window_size["width"] - 1 or self.snake[0][1] == 0 or self.snake[0][1] == self.window_size["height"] - 1):
+            return True
+
+        # If snake crosses the boundaries, make it enter from the other side
+        if self.snake[0][0] == 0:
+            self.snake[0][0] = self.window_size["width"] - 2
+        if self.snake[0][1] == 0:
+            self.snake[0][1] = self.window_size["height"] - 2
+        if self.snake[0][0] == self.window_size["width"] - 1:
+            self.snake[0][0] = 1
+        if self.snake[0][1] == self.window_size["height"] - 1:
+            self.snake[0][1] = 1
+
+        # If snake runs over itself
+        if self.snake[0] in self.snake[1:]:
+            return True
+
+        return False
 
     def terminate(self, exception=None):
         # Correctly terminate
