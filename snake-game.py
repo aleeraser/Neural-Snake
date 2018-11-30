@@ -2,6 +2,9 @@
 
 # Inspired from https://towardsdatascience.com/today-im-going-to-talk-about-a-small-practical-example-of-using-neural-networks-training-one-to-6b2cbd6efdb3
 
+# TODO: hai reso il gioco OO e strutturato. Devi finire di fare il refactoring di loop() e spezzarla in metodi più semplici.
+# Dopodichè devi predisporre la generazione di dati random, etc..
+
 import curses
 from curses import KEY_DOWN, KEY_EXIT, KEY_LEFT, KEY_RIGHT, KEY_UP
 from random import randint
@@ -137,7 +140,7 @@ class SnakeGame:
 
     def directionIsInvalid(self):
         if self.prevKey == KEY_UP or self.prevKey == KEY_DOWN:
-            return self.key == KEY_DOWN or self.key == KEY_UP
+            return self.key == KEY_UP or self.key == KEY_DOWN
         elif self.prevKey == KEY_LEFT or self.prevKey == KEY_RIGHT:
             return self.key == KEY_LEFT or self.key == KEY_RIGHT
 
