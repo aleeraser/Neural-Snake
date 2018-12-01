@@ -7,10 +7,11 @@
 # NOTE: curses methods generally expect FIRST the y/height, and SECOND the x/width
 
 import curses
+import random
+import sys
 import traceback
 from curses import KEY_DOWN, KEY_EXIT, KEY_LEFT, KEY_RIGHT, KEY_UP
 from enum import Enum
-from random import randint
 
 
 class Direction(Enum):
@@ -56,8 +57,7 @@ class SnakeGame:
 
     def start(self, interactive=True):
         self.interactive = interactive
-        if interactive:
-            self.initWindow()
+        self.initWindow()
         self.initSnake()
         self.generateFood()
         self.draw()
@@ -84,17 +84,17 @@ class SnakeGame:
         food = None
         while food is None:
             # generate food's coordinates
-            food = (randint(1, self.windowSize["width"] - 2),
-                    randint(1, self.windowSize["height"] - 2))
+            food = (random.randint(1, self.windowSize["width"] - 2),
+                    random.randint(1, self.windowSize["height"] - 2))
             if food in self.snake.body:
                 food = None
         self.food = Point(food[0], food[1])
 
     def initSnake(self, initialSize=3):
-        head = Point(randint(initialSize, self.windowSize["width"] - 1 - initialSize),
-                     randint(initialSize, self.windowSize["height"] - 1 - initialSize))
+        head = Point(random.randint(initialSize, self.windowSize["width"] - 1 - initialSize),
+                     random.randint(initialSize, self.windowSize["height"] - 1 - initialSize))
         self.snake = Snake()
-        vertical = randint(0, 1) == 0
+        vertical = random.randint(0, 1) == 0
         for i in range(initialSize):
             bodyPoint = Point(head.x + i, head.y) if vertical else Point(head.x, head.y + i)
             self.snake.append(bodyPoint)
@@ -130,21 +130,26 @@ class SnakeGame:
             return None
 
     def loop(self):
-        # if self.interactive:
         key = self.window.getch()
-        self.direction = self.mapKeyDirection(key)
-        while key == -1:
-            key = self.window.getch()
+        if self.interactive:
             self.direction = self.mapKeyDirection(key)
+            while key == -1:
+                key = self.window.getch()
+                self.direction = self.mapKeyDirection(key)
 
         while key != KEY_ESC:
             self.prevDirection = self.direction
             key = self.window.getch()
-            self.direction = self.direction if key == -1 else self.mapKeyDirection(key)
 
-            # If SPACE BAR is pressed, wait for another one (Pause/Resume)
+            if self.interactive:
+                self.direction = self.direction if key == -1 else self.mapKeyDirection(key)
+            else:
+                self.direction = random.choice(list(Direction))
+
+            # # If SPACE BAR is pressed, wait for another one (Pause/Resume)
             if key == ord(' '):
-                while key != ord(' '):
+                key = self.window.getch()
+                while key != ord(' ') and key != KEY_ESC:
                     key = self.window.getch()
                 self.direction = self.prevDirection
                 continue
@@ -231,8 +236,14 @@ class SnakeGame:
 
 if __name__ == "__main__":
     game = SnakeGame()
+
+    interactive = True
+    if len(sys.argv) > 1:
+        if str(sys.argv[1]) == "-r":
+            interactive = False
+
     try:
-        game.start(interactive=True)
+        game.start(interactive=interactive)
     except Exception as e:
         game.terminate(True)
         traceback.print_exc()
