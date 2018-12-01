@@ -5,24 +5,62 @@
 # TODO: hai reso il gioco OO e strutturato. Devi finire di fare il refactoring di loop() e spezzarla in metodi più semplici.
 # Dopodichè devi predisporre la generazione di dati random, etc..
 
+# NOTE: curses methods generally expect FIRST the y/height, and SECOND the x/width
+
 import curses
+import traceback
 from curses import KEY_DOWN, KEY_EXIT, KEY_LEFT, KEY_RIGHT, KEY_UP
+from enum import Enum
 from random import randint
+
+
+class Direction(Enum):
+    LEFT, RIGHT, UP, DOWN = range(4)
+
 
 KEY_ESC = 27
 
 
+class Point():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
+class Snake():
+    def __init__(self):
+        self.body = []
+        self.head = None
+
+    def append(self, point):
+        self.body.append(point)
+        if not self.head:
+            self.head = point
+
+    def prepend(self, point):
+        self.body.insert(0, point)
+        self.head = self.body[0]
+
+    def removeLast(self):
+        self.body.pop()
+
+    def getTail(self):
+        return self.body[1:]
+
+
 class SnakeGame:
-    def __init__(self, window_width=20, window_height=40, walls_enabled=False):
+    def __init__(self, window_width=40, window_height=20, walls_enabled=False):
         self.score = 0
-        self.key = None
+        self.direction = None
         self.window_size = {"width": window_width, "height": window_height}
         self.walls_enabled = walls_enabled
 
-    def start(self):
-        self.init_window()
-        self.init_snake()  # snake = [[4, 10], [4, 9], [4, 8]]
-        self.generate_food()  # food = [10, 20]
+    def start(self, interactive=True):
+        self.interactive = interactive
+        if interactive:
+            self.init_window()
+        self.init_snake()
+        self.generate_food()
         self.draw()
         self.loop()
 
@@ -30,7 +68,7 @@ class SnakeGame:
         # Initialization of curses
         curses.initscr()
 
-        window = curses.newwin(self.window_size["width"], self.window_size["height"], 0, 0)
+        window = curses.newwin(self.window_size["height"], self.window_size["width"], 0, 0)
 
         curses.noecho()  # disable automatic echoing of keys to the screen
         curses.cbreak()  # react to keys instantly w/o requiring the Enter key to be pressed
@@ -40,7 +78,7 @@ class SnakeGame:
         # window.border(0)
 
         # Increases the speed of Snake as its length increases
-        # self.window.timeout(round(100 - (len(self.snake) / 5 + len(self.snake) / 10) % 120))
+        # self.window.timeout(round(100 - (len(self.snake.body) / 5 + len(self.snake.body) / 10) % 120))
         window.timeout(120)
         self.window = window
 
@@ -48,109 +86,138 @@ class SnakeGame:
         food = None
         while food is None:
             # generate food's coordinates
-            food = [randint(1, self.window_size["width"] - 2), randint(1, self.window_size["height"] - 2)]
-            if food in self.snake:
+            food = (randint(1, self.window_size["width"] - 2),
+                    randint(1, self.window_size["height"] - 2))
+            if food in self.snake.body:
                 food = None
-        self.food = food
+        self.food = Point(food[0], food[1])
 
     def init_snake(self, initial_size=3):
-        head_x = randint(initial_size, self.window_size["width"] - initial_size)
-        head_y = randint(initial_size, self.window_size["height"] - initial_size)
-        self.snake = []
+        head = Point(randint(initial_size, self.window_size["width"] - 1 - initial_size),
+                     randint(initial_size, self.window_size["height"] - 1 - initial_size))
+        self.snake = Snake()
         vertical = randint(0, 1) == 0
         for i in range(initial_size):
-            body_point = [head_x + i, head_y] if vertical else [head_x, head_y + i]
-            self.snake.insert(0, body_point)
+            body_point = Point(head.x + i, head.y) if vertical else Point(head.x, head.y + i)
+            self.snake.append(body_point)
 
     def draw(self):
         self.window.clear()
         self.window.border(0)
         self.window.addstr(0, 2, ' Score: ' + str(self.score) + ' ')
 
-        self.window.addch(self.food[0], self.food[1], '*')
+        self.window.addch(self.food.y, self.food.x, '*')
 
-        for i, body_point in enumerate(self.snake):
+        for i, body_point in enumerate(self.snake.body):
             if i == 0:
-                self.window.addch(body_point[0], body_point[1], '@')
+                self.window.addch(body_point.y, body_point.x, '@')
             else:
-                self.window.addch(body_point[0], body_point[1], 'O')
+                self.window.addch(body_point.y, body_point.x, 'O')
+
+        # if self.direction is not None:
+        #     self.window.addstr(self.window_size["height"] - 1,
+        #                        2,
+        #                        str(self.direction))
+
+    def mapKeyDirection(self, key):
+        if key == KEY_LEFT:
+            return Direction.LEFT
+        elif key == KEY_RIGHT:
+            return Direction.RIGHT
+        elif key == KEY_UP:
+            return Direction.UP
+        elif key == KEY_DOWN:
+            return Direction.DOWN
+        else:
+            return None
 
     def loop(self):
-        while self.key is None:
-            self.key = self.window.getch()
+        # if self.interactive:
+        key = self.window.getch()
+        self.direction = self.mapKeyDirection(key)
+        while key == -1:
+            key = self.window.getch()
+            self.direction = self.mapKeyDirection(key)
 
-            # If an invalid key is pressed
-            if self.key not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESC]:
-                self.key = None
+        while key != KEY_ESC:
+            self.prevDirection = self.direction
+            key = self.window.getch()
+            self.direction = self.direction if key == -1 else self.mapKeyDirection(key)
 
-        try:
-            while self.key != KEY_ESC:
-                self.prevKey = self.key
-                newKey = self.window.getch()
-                self.key = self.key if newKey == -1 else newKey
+            # If SPACE BAR is pressed, wait for another one (Pause/Resume)
+            if key == ord(' '):
+                while key != ord(' '):
+                    key = self.window.getch()
+                self.direction = self.prevDirection
+                continue
 
-                # If SPACE BAR is pressed, wait for another one (Pause/Resume)
-                if self.key == ord(' '):
-                    self.key = -1
-                    while self.key != ord(' '):
-                        self.key = self.window.getch()
-                    self.key = self.prevKey
-                    continue
+            if self.directionIsInvalid():
+                self.direction = self.prevDirection
 
-                # If an invalid key is pressed
-                if self.key not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESC] or self.directionIsInvalid():
-                    self.key = self.prevKey
+            # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
+            # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
+            self.snake.prepend(Point(self.snake.head.x +
+                                     (self.direction == Direction.LEFT and -1) +
+                                     (self.direction == Direction.RIGHT and 1),
+                                     self.snake.head.y +
+                                     (self.direction == Direction.UP and -1) +
+                                     (self.direction == Direction.DOWN and 1)))
 
-                # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
-                # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
-                self.snake.insert(0, [self.snake[0][0] + (self.key == KEY_DOWN and 1) + (self.key == KEY_UP and -1), self.snake[0][1] + (self.key == KEY_LEFT and -1) + (self.key == KEY_RIGHT and 1)])
+            if self.isCollision():
+                break
 
-                if self.isCollision():
-                    break
+            # If snake crosses the boundaries, make it enter from the other side
+            if self.snake.head.x == 0:
+                self.snake.head.x = self.window_size["width"] - 2
+            if self.snake.head.x == self.window_size["width"] - 1:
+                self.snake.head.x = 1
+            if self.snake.head.y == 0:
+                self.snake.head.y = self.window_size["height"] - 2
+            if self.snake.head.y == self.window_size["height"] - 1:
+                self.snake.head.y = 1
 
-                # When the snake eats the food
-                if self.snake[0] == self.food:
-                    self.score += 1
-                    self.generate_food()
-                else:
-                    # [1]
-                    self.snake.pop()
+            # When the snake eats the food
+            if self.snake.head == self.food:
+                self.score += 1
+                self.generate_food()
+            else:
+                # [1]
+                self.snake.removeLast()
 
-                self.draw()
-
-        except Exception as e:
-            self.terminate(e)
+            self.draw()
 
         self.terminate()
 
     def directionIsInvalid(self):
-        if self.prevKey == KEY_UP or self.prevKey == KEY_DOWN:
-            return self.key == KEY_UP or self.key == KEY_DOWN
-        elif self.prevKey == KEY_LEFT or self.prevKey == KEY_RIGHT:
-            return self.key == KEY_LEFT or self.key == KEY_RIGHT
+        invalid = False
+
+        # If an invalid key is pressed
+        if self.direction not in list(Direction):
+            invalid = True
+
+        if self.prevDirection == Direction.UP or self.prevDirection == Direction.DOWN:
+            invalid = self.direction == Direction.UP or self.direction == Direction.DOWN
+        elif self.prevDirection == Direction.LEFT or self.prevDirection == Direction.RIGHT:
+            invalid = self.direction == Direction.LEFT or self.direction == Direction.RIGHT
+
+        return invalid
 
     def isCollision(self):
         # Exit if snake crosses the boundaries
-        if self.walls_enabled and (self.snake[0][0] == 0 or self.snake[0][0] == self.window_size["width"] - 1 or self.snake[0][1] == 0 or self.snake[0][1] == self.window_size["height"] - 1):
+        if (self.walls_enabled and
+            (self.snake.head.x == 0 or
+             self.snake.head.x == self.window_size["width"] - 1 or
+             self.snake.head.y == 0 or
+             self.snake.head.y == self.window_size["height"] - 1)):
             return True
 
-        # If snake crosses the boundaries, make it enter from the other side
-        if self.snake[0][0] == 0:
-            self.snake[0][0] = self.window_size["width"] - 2
-        if self.snake[0][1] == 0:
-            self.snake[0][1] = self.window_size["height"] - 2
-        if self.snake[0][0] == self.window_size["width"] - 1:
-            self.snake[0][0] = 1
-        if self.snake[0][1] == self.window_size["height"] - 1:
-            self.snake[0][1] = 1
-
         # If snake runs over itself
-        if self.snake[0] in self.snake[1:]:
+        if self.snake.head in self.snake.getTail():
             return True
 
         return False
 
-    def terminate(self, exception=None):
+    def terminate(self, exception=False):
         # Correctly terminate
         curses.nocbreak()
         self.window.keypad(False)
@@ -159,13 +226,15 @@ class SnakeGame:
         # Restore teminal to its original operating mode
         curses.endwin()
 
-        if exception is not None:
-            print(exception)
-
-        print("Game over")
-        print("Score: " + str(self.score))
+        if not exception:
+            print("Game over")
+            print("Score: " + str(self.score))
 
 
 if __name__ == "__main__":
     game = SnakeGame()
-    game.start()
+    try:
+        game.start(interactive=True)
+    except Exception as e:
+        game.terminate(True)
+        traceback.print_exc()
