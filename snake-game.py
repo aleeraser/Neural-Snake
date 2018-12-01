@@ -2,8 +2,7 @@
 
 # Inspired from https://towardsdatascience.com/today-im-going-to-talk-about-a-small-practical-example-of-using-neural-networks-training-one-to-6b2cbd6efdb3
 
-# TODO: hai reso il gioco OO e strutturato. Devi finire di fare il refactoring di loop() e spezzarla in metodi più semplici.
-# Dopodichè devi predisporre la generazione di dati random, etc..
+# TODO: predisporre la generazione di dati random, etc..
 
 # NOTE: curses methods generally expect FIRST the y/height, and SECOND the x/width
 
@@ -75,7 +74,6 @@ class SnakeGame:
         window.keypad(True)  # let curses automatically parse keys and return them as e.g. KEY_DOWN, ...
         curses.curs_set(0)  # 0, 1, or 2, for invisible, normal, or very visible
         window.nodelay(True)  # make getch non-blocking
-        # window.border(0)
 
         # Increases the speed of Snake as its length increases
         # self.window.timeout(round(100 - (len(self.snake.body) / 5 + len(self.snake.body) / 10) % 120))
