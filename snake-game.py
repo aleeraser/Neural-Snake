@@ -48,26 +48,26 @@ class Snake():
 
 
 class SnakeGame:
-    def __init__(self, window_width=40, window_height=20, walls_enabled=False):
+    def __init__(self, windowWidth=40, windowHeight=20, wallsEnabled=False):
         self.score = 0
         self.direction = None
-        self.window_size = {"width": window_width, "height": window_height}
-        self.walls_enabled = walls_enabled
+        self.windowSize = {"width": windowWidth, "height": windowHeight}
+        self.wallsEnabled = wallsEnabled
 
     def start(self, interactive=True):
         self.interactive = interactive
         if interactive:
-            self.init_window()
-        self.init_snake()
-        self.generate_food()
+            self.initWindow()
+        self.initSnake()
+        self.generateFood()
         self.draw()
         self.loop()
 
-    def init_window(self):
+    def initWindow(self):
         # Initialization of curses
         curses.initscr()
 
-        window = curses.newwin(self.window_size["height"], self.window_size["width"], 0, 0)
+        window = curses.newwin(self.windowSize["height"], self.windowSize["width"], 0, 0)
 
         curses.noecho()  # disable automatic echoing of keys to the screen
         curses.cbreak()  # react to keys instantly w/o requiring the Enter key to be pressed
@@ -80,24 +80,24 @@ class SnakeGame:
         window.timeout(120)
         self.window = window
 
-    def generate_food(self):
+    def generateFood(self):
         food = None
         while food is None:
             # generate food's coordinates
-            food = (randint(1, self.window_size["width"] - 2),
-                    randint(1, self.window_size["height"] - 2))
+            food = (randint(1, self.windowSize["width"] - 2),
+                    randint(1, self.windowSize["height"] - 2))
             if food in self.snake.body:
                 food = None
         self.food = Point(food[0], food[1])
 
-    def init_snake(self, initial_size=3):
-        head = Point(randint(initial_size, self.window_size["width"] - 1 - initial_size),
-                     randint(initial_size, self.window_size["height"] - 1 - initial_size))
+    def initSnake(self, initialSize=3):
+        head = Point(randint(initialSize, self.windowSize["width"] - 1 - initialSize),
+                     randint(initialSize, self.windowSize["height"] - 1 - initialSize))
         self.snake = Snake()
         vertical = randint(0, 1) == 0
-        for i in range(initial_size):
-            body_point = Point(head.x + i, head.y) if vertical else Point(head.x, head.y + i)
-            self.snake.append(body_point)
+        for i in range(initialSize):
+            bodyPoint = Point(head.x + i, head.y) if vertical else Point(head.x, head.y + i)
+            self.snake.append(bodyPoint)
 
     def draw(self):
         self.window.clear()
@@ -106,11 +106,11 @@ class SnakeGame:
 
         self.window.addch(self.food.y, self.food.x, '*')
 
-        for i, body_point in enumerate(self.snake.body):
+        for i, bodyPoint in enumerate(self.snake.body):
             if i == 0:
-                self.window.addch(body_point.y, body_point.x, '@')
+                self.window.addch(bodyPoint.y, bodyPoint.x, '@')
             else:
-                self.window.addch(body_point.y, body_point.x, 'O')
+                self.window.addch(bodyPoint.y, bodyPoint.x, 'O')
 
         # if self.direction is not None:
         #     self.window.addstr(self.window_size["height"] - 1,
@@ -166,18 +166,18 @@ class SnakeGame:
 
             # If snake crosses the boundaries, make it enter from the other side
             if self.snake.head.x == 0:
-                self.snake.head.x = self.window_size["width"] - 2
-            if self.snake.head.x == self.window_size["width"] - 1:
+                self.snake.head.x = self.windowSize["width"] - 2
+            if self.snake.head.x == self.windowSize["width"] - 1:
                 self.snake.head.x = 1
             if self.snake.head.y == 0:
-                self.snake.head.y = self.window_size["height"] - 2
-            if self.snake.head.y == self.window_size["height"] - 1:
+                self.snake.head.y = self.windowSize["height"] - 2
+            if self.snake.head.y == self.windowSize["height"] - 1:
                 self.snake.head.y = 1
 
             # When the snake eats the food
             if self.snake.head == self.food:
                 self.score += 1
-                self.generate_food()
+                self.generateFood()
             else:
                 # [1]
                 self.snake.removeLast()
@@ -202,11 +202,11 @@ class SnakeGame:
 
     def isCollision(self):
         # Exit if snake crosses the boundaries
-        if (self.walls_enabled and
+        if (self.wallsEnabled and
             (self.snake.head.x == 0 or
-             self.snake.head.x == self.window_size["width"] - 1 or
+             self.snake.head.x == self.windowSize["width"] - 1 or
              self.snake.head.y == 0 or
-             self.snake.head.y == self.window_size["height"] - 1)):
+             self.snake.head.y == self.windowSize["height"] - 1)):
             return True
 
         # If snake runs over itself
