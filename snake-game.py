@@ -26,6 +26,12 @@ class Point():
         self.x = x
         self.y = y
 
+    def toString(self):
+        return "(" + str(self.x) + ", " + str(self.y) + ")"
+
+    def equals(self, point):
+        return self.x == point.x and self.y == point.y
+
 
 class Snake():
     def __init__(self):
@@ -44,8 +50,11 @@ class Snake():
     def removeLast(self):
         self.body.pop()
 
-    def getTail(self):
-        return self.body[1:]
+    def __contains__(self, point):
+        for bodyPoint in self.body:
+            if bodyPoint.equals(point):
+                return True
+        return False
 
 
 class SnakeGame:
@@ -54,6 +63,8 @@ class SnakeGame:
         self.direction = None
         self.windowSize = {"width": windowWidth, "height": windowHeight}
         self.wallsEnabled = wallsEnabled
+        self.debug = None
+        self.paused = False
 
     def start(self, interactive=True):
         self.interactive = interactive
@@ -84,11 +95,11 @@ class SnakeGame:
         food = None
         while food is None:
             # generate food's coordinates
-            food = (random.randint(1, self.windowSize["width"] - 2),
-                    random.randint(1, self.windowSize["height"] - 2))
-            if food in self.snake.body:
+            food = Point(random.randint(1, self.windowSize["width"] - 2),
+                         random.randint(1, self.windowSize["height"] - 2))
+            if food in self.snake:
                 food = None
-        self.food = Point(food[0], food[1])
+        self.food = food
 
     def initSnake(self, initialSize=3):
         head = Point(random.randint(initialSize, self.windowSize["width"] - 1 - initialSize),
@@ -112,10 +123,10 @@ class SnakeGame:
             else:
                 self.window.addch(bodyPoint.y, bodyPoint.x, 'O')
 
-        # if self.direction is not None:
-        #     self.window.addstr(self.window_size["height"] - 1,
-        #                        2,
-        #                        str(self.direction))
+        if self.debug is not None:
+            self.window.addstr(self.windowSize["height"] - 1,
+                               2,
+                               str(self.debug))
 
     def mapKeyDirection(self, key):
         if key == KEY_LEFT:
@@ -141,51 +152,60 @@ class SnakeGame:
             self.prevDirection = self.direction
             key = self.window.getch()
 
+            if key == ord('r'):
+                self.interactive = not self.interactive
+                key = -1
+
+            if self.paused:
+                # If the game is paused wait for a SPACE BAR to resume
+                if key == ord(' '):
+                    self.paused = False
+                continue
+            else:
+                # If SPACE BAR is pressed pause the game
+                if key == ord(' '):
+                    self.paused = True
+                    continue
+
             if self.interactive:
                 self.direction = self.direction if key == -1 else self.mapKeyDirection(key)
             else:
                 self.direction = random.choice(list(Direction))
-
-            # # If SPACE BAR is pressed, wait for another one (Pause/Resume)
-            if key == ord(' '):
-                key = self.window.getch()
-                while key != ord(' ') and key != KEY_ESC:
-                    key = self.window.getch()
-                self.direction = self.prevDirection
-                continue
 
             if self.directionIsInvalid():
                 self.direction = self.prevDirection
 
             # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
             # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
-            self.snake.prepend(Point(self.snake.head.x +
-                                     (self.direction == Direction.LEFT and -1) +
-                                     (self.direction == Direction.RIGHT and 1),
-                                     self.snake.head.y +
-                                     (self.direction == Direction.UP and -1) +
-                                     (self.direction == Direction.DOWN and 1)))
-
-            if self.isCollision():
-                break
+            nextHead = Point(self.snake.head.x +
+                             (self.direction == Direction.LEFT and -1) +
+                             (self.direction == Direction.RIGHT and 1),
+                             self.snake.head.y +
+                             (self.direction == Direction.UP and -1) +
+                             (self.direction == Direction.DOWN and 1))
 
             # If snake crosses the boundaries, make it enter from the other side
-            if self.snake.head.x == 0:
-                self.snake.head.x = self.windowSize["width"] - 2
-            if self.snake.head.x == self.windowSize["width"] - 1:
-                self.snake.head.x = 1
-            if self.snake.head.y == 0:
-                self.snake.head.y = self.windowSize["height"] - 2
-            if self.snake.head.y == self.windowSize["height"] - 1:
-                self.snake.head.y = 1
+            if nextHead.x == 0:
+                nextHead.x = self.windowSize["width"] - 2
+            if nextHead.x == self.windowSize["width"] - 1:
+                nextHead.x = 1
+            if nextHead.y == 0:
+                nextHead.y = self.windowSize["height"] - 2
+            if nextHead.y == self.windowSize["height"] - 1:
+                nextHead.y = 1
 
             # When the snake eats the food
-            if self.snake.head == self.food:
+            if nextHead.equals(self.food):
                 self.score += 1
                 self.generateFood()
             else:
                 # [1]
                 self.snake.removeLast()
+
+            if self.isCollision(nextHead):
+                break
+
+            self.snake.prepend(nextHead)
 
             self.draw()
 
@@ -205,17 +225,17 @@ class SnakeGame:
 
         return invalid
 
-    def isCollision(self):
+    def isCollision(self, nextHead):
         # Exit if snake crosses the boundaries
         if (self.wallsEnabled and
-            (self.snake.head.x == 0 or
-             self.snake.head.x == self.windowSize["width"] - 1 or
-             self.snake.head.y == 0 or
-             self.snake.head.y == self.windowSize["height"] - 1)):
+            (nextHead.x == 0 or
+             nextHead.x == self.windowSize["width"] - 1 or
+             nextHead.y == 0 or
+             nextHead.y == self.windowSize["height"] - 1)):
             return True
 
         # If snake runs over itself
-        if self.snake.head in self.snake.getTail():
+        if nextHead in self.snake:
             return True
 
         return False
