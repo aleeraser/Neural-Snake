@@ -2,8 +2,6 @@
 
 # Inspired from https://towardsdatascience.com/today-im-going-to-talk-about-a-small-practical-example-of-using-neural-networks-training-one-to-6b2cbd6efdb3
 
-# TODO: predisporre la generazione di dati random, etc..
-
 # NOTE: curses methods generally expect FIRST the y/height, and SECOND the x/width
 
 import curses
@@ -26,7 +24,7 @@ class Point():
         self.x = x
         self.y = y
 
-    def toString(self):
+    def __str__(self):
         return "(" + str(self.x) + ", " + str(self.y) + ")"
 
     def equals(self, point):
@@ -49,6 +47,9 @@ class Snake():
 
     def removeLast(self):
         self.body.pop()
+
+    def toString(self):
+        return str([str(point) for point in self.body])
 
     def __contains__(self, point):
         for bodyPoint in self.body:
