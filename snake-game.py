@@ -2,7 +2,7 @@
 
 # Inspired from https://towardsdatascience.com/today-im-going-to-talk-about-a-small-practical-example-of-using-neural-networks-training-one-to-6b2cbd6efdb3
 
-# NOTE: curses methods generally expect FIRST the y/height, and SECOND the x/width
+# NOTE: curses methods expect FIRST the y/height, and SECOND the x/width
 
 import curses
 import random
@@ -10,6 +10,14 @@ import sys
 import traceback
 from curses import KEY_DOWN, KEY_EXIT, KEY_LEFT, KEY_RIGHT, KEY_UP
 from enum import Enum
+
+
+class CollisionException(Exception):
+    pass
+
+
+class InvalidDirectionException(Exception):
+    pass
 
 
 class Direction(Enum):
@@ -59,21 +67,26 @@ class Snake():
 
 
 class SnakeGame:
-    def __init__(self, windowWidth=40, windowHeight=20, wallsEnabled=False):
-        self.score = 0
-        self.direction = None
+    def __init__(self, windowWidth=50, windowHeight=20, wallsEnabled=False):
         self.windowSize = {"width": windowWidth, "height": windowHeight}
         self.wallsEnabled = wallsEnabled
         self.debug = None
-        self.paused = False
 
     def start(self, interactive=True):
+        self.reset()
+
         self.interactive = interactive
+        self.paused = False
+
+        self.draw()
+        self.loop()
+
+    def reset(self):
+        self.score = 0
+
         self.initWindow()
         self.initSnake()
         self.generateFood()
-        self.draw()
-        self.loop()
 
     def initWindow(self):
         # Initialization of curses
@@ -108,8 +121,10 @@ class SnakeGame:
         self.snake = Snake()
         vertical = random.randint(0, 1) == 0
         for i in range(initialSize):
-            bodyPoint = Point(head.x + i, head.y) if vertical else Point(head.x, head.y + i)
+            bodyPoint = Point(head.x, head.y + i) if vertical else Point(head.x + i, head.y)
             self.snake.append(bodyPoint)
+
+        self.prevDirection = Direction.UP if vertical else Direction.LEFT
 
     def draw(self):
         self.window.clear()
@@ -125,9 +140,7 @@ class SnakeGame:
                 self.window.addch(bodyPoint.y, bodyPoint.x, 'O')
 
         if self.debug is not None:
-            self.window.addstr(self.windowSize["height"] - 1,
-                               2,
-                               str(self.debug))
+            self.window.addstr(1, 2, str(self.debug))
 
     def mapKeyDirection(self, key):
         if key == KEY_LEFT:
@@ -139,18 +152,25 @@ class SnakeGame:
         elif key == KEY_DOWN:
             return Direction.DOWN
         else:
-            return None
+            return self.prevDirection
 
     def loop(self):
+        self.window.addstr(self.windowSize["height"] - 1, 12, ' Press any key to start ')
+
         key = self.window.getch()
+        direction = None
+
         if self.interactive:
-            self.direction = self.mapKeyDirection(key)
+            direction = self.mapKeyDirection(key)
             while key == -1:
                 key = self.window.getch()
-                self.direction = self.mapKeyDirection(key)
+                direction = self.mapKeyDirection(key)
+
+        if self.directionIsInvalid(direction):
+            direction = self.prevDirection
 
         while key != KEY_ESC:
-            self.prevDirection = self.direction
+            self.prevDirection = direction
             key = self.window.getch()
 
             if key == ord('r'):
@@ -158,6 +178,7 @@ class SnakeGame:
                 key = -1
 
             if self.paused:
+                self.window.addstr(self.windowSize["height"] - 1, 8, ' Paused, press spacebar to resume ')
                 # If the game is paused wait for a SPACE BAR to resume
                 if key == ord(' '):
                     self.paused = False
@@ -169,62 +190,74 @@ class SnakeGame:
                     continue
 
             if self.interactive:
-                self.direction = self.direction if key == -1 else self.mapKeyDirection(key)
+                direction = direction if key == -1 else self.mapKeyDirection(key)
             else:
-                self.direction = random.choice(list(Direction))
+                direction = random.choice(list(Direction))
 
-            if self.directionIsInvalid():
-                self.direction = self.prevDirection
-
-            # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
-            # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
-            nextHead = Point(self.snake.head.x +
-                             (self.direction == Direction.LEFT and -1) +
-                             (self.direction == Direction.RIGHT and 1),
-                             self.snake.head.y +
-                             (self.direction == Direction.UP and -1) +
-                             (self.direction == Direction.DOWN and 1))
-
-            # If snake crosses the boundaries, make it enter from the other side
-            if nextHead.x == 0:
-                nextHead.x = self.windowSize["width"] - 2
-            if nextHead.x == self.windowSize["width"] - 1:
-                nextHead.x = 1
-            if nextHead.y == 0:
-                nextHead.y = self.windowSize["height"] - 2
-            if nextHead.y == self.windowSize["height"] - 1:
-                nextHead.y = 1
-
-            # When the snake eats the food
-            if nextHead.equals(self.food):
-                self.score += 1
-                self.generateFood()
-            else:
-                # [1]
-                self.snake.removeLast()
-
-            if self.isCollision(nextHead):
+            try:
+                self.step(direction)
+            except CollisionException as e:
                 break
-
-            self.snake.prepend(nextHead)
-
-            self.draw()
+            except InvalidDirectionException as e:
+                direction = self.prevDirection
+                self.step(direction)
 
         self.terminate()
 
-    def directionIsInvalid(self):
-        invalid = False
+    def step(self, direction=None):
+        if direction is None:
+            raise Exception("No action specified.")
 
+        if self.directionIsInvalid(direction):
+            raise InvalidDirectionException
+
+        # Calculates the new coordinates of the head of the snake. In order to move the snake we must add a point
+        # in the next diretion and, if the snake didn't eat, also remove a point from the tail (managed in [1]).
+        nextHead = Point(self.snake.head.x +
+                         (direction == Direction.LEFT and -1) +
+                         (direction == Direction.RIGHT and 1),
+                         self.snake.head.y +
+                         (direction == Direction.UP and -1) +
+                         (direction == Direction.DOWN and 1))
+
+        # If snake crosses the boundaries, make it enter from the other side
+        if nextHead.x == 0:
+            nextHead.x = self.windowSize["width"] - 2
+        if nextHead.x == self.windowSize["width"] - 1:
+            nextHead.x = 1
+        if nextHead.y == 0:
+            nextHead.y = self.windowSize["height"] - 2
+        if nextHead.y == self.windowSize["height"] - 1:
+            nextHead.y = 1
+
+        # When the snake eats the food
+        if nextHead.equals(self.food):
+            self.score += 1
+            self.generateFood()
+        else:
+            # [1]
+            self.snake.removeLast()
+
+        if self.isCollision(nextHead):
+            raise CollisionException
+
+        self.snake.prepend(nextHead)
+
+        self.draw()
+
+    def directionIsInvalid(self, direction):
         # If an invalid key is pressed
-        if self.direction not in list(Direction):
-            invalid = True
+        if direction not in list(Direction):
+            return True
 
-        if self.prevDirection == Direction.UP or self.prevDirection == Direction.DOWN:
-            invalid = self.direction == Direction.UP or self.direction == Direction.DOWN
-        elif self.prevDirection == Direction.LEFT or self.prevDirection == Direction.RIGHT:
-            invalid = self.direction == Direction.LEFT or self.direction == Direction.RIGHT
-
-        return invalid
+        if self.prevDirection == Direction.UP:
+            return direction == Direction.DOWN
+        elif self.prevDirection == Direction.DOWN:
+            return direction == Direction.UP
+        elif self.prevDirection == Direction.LEFT:
+            return direction == Direction.RIGHT
+        elif self.prevDirection == Direction.RIGHT:
+            return direction == Direction.LEFT
 
     def isCollision(self, nextHead):
         # Exit if snake crosses the boundaries
