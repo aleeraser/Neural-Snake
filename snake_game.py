@@ -67,26 +67,45 @@ class Snake():
 
 
 class SnakeGame:
-    def __init__(self, windowWidth=50, windowHeight=20, wallsEnabled=False):
+    def __init__(self, windowWidth=50, windowHeight=20, wallsEnabled=True):
         self.windowSize = {"width": windowWidth, "height": windowHeight}
         self.wallsEnabled = wallsEnabled
         self.debug = None
 
     def start(self, interactive=True):
-        self.reset()
+        self.score = 0
+
+        self.initWindow()
 
         self.interactive = interactive
         self.paused = False
 
-        self.draw()
-        self.loop()
+        key = self.window.getch()
 
-    def reset(self):
+        while key != KEY_ESC:
+            self.setup()
+            self.draw()
+
+            try:
+                self.loop()
+
+                # if we are here, loop terminated because of a KEY_ESC
+                break
+            except CollisionException as e:
+                self.window.addstr(self.windowSize["height"] - 1, round(self.windowSize["width"] / 2 - len(' Game Over ') / 2) - 1, ' Game Over ')
+                key = -1
+
+                while key == -1:
+                    key = self.window.getch()
+
+        self.terminate()
+
+    def setup(self):
         self.score = 0
-
-        self.initWindow()
-        self.initSnake()
+        self.window.clear()
+        self.initSnake(initialSize=8)
         self.generateFood()
+        self.draw()
 
     def initWindow(self):
         # Initialization of curses
@@ -197,12 +216,10 @@ class SnakeGame:
             try:
                 self.step(direction)
             except CollisionException as e:
-                break
+                raise e
             except InvalidDirectionException as e:
                 direction = self.prevDirection
                 self.step(direction)
-
-        self.terminate()
 
     def step(self, direction=None):
         if direction is None:
@@ -220,15 +237,16 @@ class SnakeGame:
                          (direction == Direction.UP and -1) +
                          (direction == Direction.DOWN and 1))
 
-        # If snake crosses the boundaries, make it enter from the other side
-        if nextHead.x == 0:
-            nextHead.x = self.windowSize["width"] - 2
-        if nextHead.x == self.windowSize["width"] - 1:
-            nextHead.x = 1
-        if nextHead.y == 0:
-            nextHead.y = self.windowSize["height"] - 2
-        if nextHead.y == self.windowSize["height"] - 1:
-            nextHead.y = 1
+        if not self.wallsEnabled:
+            # If snake crosses the boundaries, make it enter from the other side
+            if nextHead.x == 0:
+                nextHead.x = self.windowSize["width"] - 2
+            if nextHead.x == self.windowSize["width"] - 1:
+                nextHead.x = 1
+            if nextHead.y == 0:
+                nextHead.y = self.windowSize["height"] - 2
+            if nextHead.y == self.windowSize["height"] - 1:
+                nextHead.y = 1
 
         # When the snake eats the food
         if nextHead.equals(self.food):
