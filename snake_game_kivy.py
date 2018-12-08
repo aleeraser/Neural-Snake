@@ -1,4 +1,5 @@
 from collections import defaultdict
+from enum import Enum
 from random import randint
 
 from kivy import properties as kp
@@ -19,20 +20,24 @@ MOVESPEED = .05
 
 ALPHA = .5
 
-LEFT = 'left'
-UP = 'up'
-RIGHT = 'right'
-DOWN = 'down'
 
-direction_values = {LEFT: [-1, 0],
-                    UP: [0, 1],
-                    RIGHT: [1, 0],
-                    DOWN: [0, -1]}
+class Direction(Enum):
+    LEFT, RIGHT, UP, DOWN = range(4)
 
-direction_group = {LEFT: 'horizontal',
-                   UP: 'vertical',
-                   RIGHT: 'horizontal',
-                   DOWN: 'vertical', }
+
+direction_values = {
+    Direction.LEFT: [-1, 0],
+    Direction.UP: [0, 1],
+    Direction.RIGHT: [1, 0],
+    Direction.DOWN: [0, -1]
+}
+
+direction_group = {
+    Direction.LEFT: 'horizontal',
+    Direction.UP: 'vertical',
+    Direction.RIGHT: 'horizontal',
+    Direction.DOWN: 'vertical'
+}
 
 
 class Block(Widget):
@@ -63,13 +68,11 @@ class Snake(App):
     food = kp.ListProperty([0, 0])
     food_sprite = kp.ObjectProperty(Food)
 
-    direction = kp.StringProperty(RIGHT, options=(LEFT, UP, RIGHT, DOWN))
-    buffer_direction = kp.StringProperty(RIGHT, allownone=True, options=(LEFT, UP, RIGHT, DOWN))
+    direction = kp.ObjectProperty(Direction.RIGHT, options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
+    buffer_direction = kp.ObjectProperty(Direction.RIGHT, allownone=True, options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
     block_input = kp.BooleanProperty(False)
 
     alpha = kp.NumericProperty(0)
-
-    wallsEnabled = True
 
     def on_start(self):
         Window.size = WINDOW_SIZE
@@ -81,9 +84,10 @@ class Snake(App):
         self.head = self.new_head_location
         self.food_sprite = Food()
         self.food = self.new_food_location
+        # Clock.schedule_interval(self.NNdecision, MOVESPEED)
         Clock.schedule_interval(self.move, MOVESPEED)
 
-        self.root.add_widget()
+        # self.root.add_widget()
 
     def on_resize(self, *args):
         Window.size = WINDOW_SIZE
@@ -93,18 +97,30 @@ class Snake(App):
         self.keyboard.unbind(on_key_down=self.key_handler)
         self.keyboard = None
 
+    def key_direction_mapping(self, key):
+        if key == 'left':
+            return Direction.LEFT
+        elif key == 'up':
+            return Direction.UP
+        elif key == 'right':
+            return Direction.RIGHT
+        elif key == 'down':
+            return Direction.DOWN
+        else:
+            raise KeyError
+
     def key_handler(self, *args):
         try:
             key = args[1][1]
             if self.valid_key(key):
-                self.try_change_direction(key)
+                self.try_change_direction(self.key_direction_mapping(key))
             else:
                 raise KeyError
         except KeyError:
             pass
 
     def valid_key(self, key):
-        if key not in [RIGHT, LEFT, UP, DOWN]:
+        if key not in ['left', 'up', 'right', 'down']:
             return False
         return True
 
@@ -116,6 +132,23 @@ class Snake(App):
                 self.direction = new_direction
                 self.block_input = True
 
+    def NNdecision(self):
+        pass
+
+    def move(self, *args):
+        self.block_input = False
+        new_head = [sum(x) for x in zip(self.head, direction_values[self.direction])]
+        if not self.check_in_bounds(new_head) or new_head in self.snake:
+            return self.die()
+        if new_head == self.food:
+            self.lenght += 1
+            self.food = self.new_food_location
+        if self.buffer_direction:
+            self.try_change_direction(self.buffer_direction)
+            self.buffer_direction = None
+        self.head = new_head
+
+    # called every time the food changes
     def on_food(self, *args):
         self.food_sprite.coord = self.food
         if not self.food_sprite.parent:
@@ -143,19 +176,6 @@ class Snake(App):
             food = [randint(0, dim - 1) for dim in [COLS, ROWS]]
             if food not in self.snake and food != self.food:
                 return food
-
-    def move(self, *args):
-        self.block_input = False
-        new_head = [sum(x) for x in zip(self.head, direction_values[self.direction])]
-        if not self.check_in_bounds(new_head) or new_head in self.snake:
-            return self.die()
-        if new_head == self.food:
-            self.lenght += 1
-            self.food = self.new_food_location
-        if self.buffer_direction:
-            self.try_change_direction(self.buffer_direction)
-            self.buffer_direction = None
-        self.head = new_head
 
     def check_in_bounds(self, pos):
         return all(0 <= pos[x] < dim for x, dim in enumerate([COLS, ROWS]))
