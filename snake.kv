@@ -1,0 +1,26 @@
+#:kivy 1.10.1
+
+RelativeLayout:
+    canvas:
+        Color:
+            rgba: 1, 0, 0, app.alpha
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<Block>:
+    size_hint: None, None
+    size: [app.sprite_size] * 2
+    pos: [x * app.sprite_size for x in self.coord]
+    canvas:
+        Color:
+            rgba: self.bgcolor
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<SnakeBlock>:
+    bgcolor: 1, 1, 1, 1
+
+<Food>:
+    bgcolor: 0, 1, 0, 1
