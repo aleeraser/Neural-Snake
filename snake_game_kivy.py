@@ -1,6 +1,6 @@
+import random
 from collections import defaultdict
 from enum import Enum
-from random import randint
 
 from kivy import properties as kp
 from kivy.animation import Animation
@@ -8,6 +8,7 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import sp
+from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
 WINDOW_SIZE = [800, 600]
@@ -27,15 +28,15 @@ class Direction(Enum):
 
 direction_values = {
     Direction.LEFT: [-1, 0],
-    Direction.UP: [0, 1],
     Direction.RIGHT: [1, 0],
+    Direction.UP: [0, 1],
     Direction.DOWN: [0, -1]
 }
 
 direction_group = {
     Direction.LEFT: 'horizontal',
-    Direction.UP: 'vertical',
     Direction.RIGHT: 'horizontal',
+    Direction.UP: 'vertical',
     Direction.DOWN: 'vertical'
 }
 
@@ -58,6 +59,10 @@ class Food(Block):
     pass
 
 
+class Score(Label):
+    coord = kp.ListProperty([2, ROWS - 2])
+
+
 class Snake(App):
     sprite_size = kp.NumericProperty(SPRITE_SIZE)
 
@@ -65,11 +70,14 @@ class Snake(App):
     snake = kp.ListProperty()
     lenght = kp.NumericProperty(LENGHT)
 
+    score = kp.NumericProperty(0)
+    deaths = kp.NumericProperty(0)
+
     food = kp.ListProperty([0, 0])
     food_sprite = kp.ObjectProperty(Food)
 
-    direction = kp.ObjectProperty(Direction.RIGHT, options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
-    buffer_direction = kp.ObjectProperty(Direction.RIGHT, allownone=True, options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
+    direction = kp.ObjectProperty(random.choice(list(Direction)), options=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN))
+    buffer_direction = kp.ObjectProperty(random.choice(list(Direction)), allownone=True, options=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN))
     block_input = kp.BooleanProperty(False)
 
     alpha = kp.NumericProperty(0)
@@ -84,14 +92,19 @@ class Snake(App):
         self.head = self.new_head_location
         self.food_sprite = Food()
         self.food = self.new_food_location
-        # Clock.schedule_interval(self.NNdecision, MOVESPEED)
+
+        self.scoreLabel = Score(markup=True, font_size='20sp')
+        self.on_score()
+
+        Clock.schedule_interval(self.NNdecision, MOVESPEED)
         Clock.schedule_interval(self.move, MOVESPEED)
 
-        # self.root.add_widget()
+    def updateScoreLabel(self):
+        self.scoreLabel.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
 
     def on_resize(self, *args):
         Window.size = WINDOW_SIZE
-        self.die()
+        # self.die()
 
     def on_keyboard_close(self):
         self.keyboard.unbind(on_key_down=self.key_handler)
@@ -100,10 +113,10 @@ class Snake(App):
     def key_direction_mapping(self, key):
         if key == 'left':
             return Direction.LEFT
-        elif key == 'up':
-            return Direction.UP
         elif key == 'right':
             return Direction.RIGHT
+        elif key == 'up':
+            return Direction.UP
         elif key == 'down':
             return Direction.DOWN
         else:
@@ -132,8 +145,8 @@ class Snake(App):
                 self.direction = new_direction
                 self.block_input = True
 
-    def NNdecision(self):
-        pass
+    def NNdecision(self, *args):
+        self.direction = random.choice(list(Direction))
 
     def move(self, *args):
         self.block_input = False
@@ -142,11 +155,19 @@ class Snake(App):
             return self.die()
         if new_head == self.food:
             self.lenght += 1
+            self.score += 1
+
             self.food = self.new_food_location
         if self.buffer_direction:
             self.try_change_direction(self.buffer_direction)
             self.buffer_direction = None
         self.head = new_head
+
+    # called every time the score changes
+    def on_score(self, *args):
+        self.updateScoreLabel()
+        if not self.scoreLabel.parent:
+            self.root.add_widget(self.scoreLabel)
 
     # called every time the food changes
     def on_food(self, *args):
@@ -168,12 +189,12 @@ class Snake(App):
 
     @property
     def new_head_location(self):
-        return [randint(2, dim - 2) for dim in [COLS, ROWS]]
+        return [random.randint(2, dim - 2) for dim in [COLS, ROWS]]
 
     @property
     def new_food_location(self):
         while True:
-            food = [randint(0, dim - 1) for dim in [COLS, ROWS]]
+            food = [random.randint(0, dim - 1) for dim in [COLS, ROWS]]
             if food not in self.snake and food != self.food:
                 return food
 
@@ -189,8 +210,15 @@ class Snake(App):
 
         self.snake.clear()
         self.lenght = LENGHT
+
+        self.score = 0
+        self.deaths += 1
+        self.on_score()
+
         self.head = self.new_head_location
         self.food = self.new_food_location
+
+        self.direction = random.choice(list(Direction))
 
 
 if __name__ == "__main__":

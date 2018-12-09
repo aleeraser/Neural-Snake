@@ -24,3 +24,9 @@ RelativeLayout:
 
 <Food>:
     bgcolor: 0, 1, 0, 1
+
+<Label>:
+    color: 1, 1, 1, 1
+    size: [app.sprite_size] * 2
+    size_hint: None, None
+    pos: [x * app.sprite_size for x in self.coord]
