@@ -18,8 +18,13 @@ ROWS = int(Window.height / SPRITE_SIZE)
 
 ALPHA = .5
 
+
 class Direction(Enum):
     LEFT, RIGHT, UP, DOWN = range(4)
+
+
+class RunState(Enum):
+    PAUSED, LOOPING = range(2)
 
 
 direction_values = {
@@ -97,12 +102,32 @@ class Snake(App):
 
         self.scheduledFunctions = []
         self.scheduledEvents = []
-        # NN decision
-        # self.scheduledEvents.append(Clock.schedule_interval(self.NNdecision, self.movespeed))
-        # self.scheduledFunctions.append(self.NNdecision)
-        # move
-        self.scheduledEvents.append(Clock.schedule_interval(self.move, self.movespeed))
-        self.scheduledFunctions.append(self.move)
+
+        self.runState = RunState.PAUSED
+
+    def loop(self):
+        if self.runState == RunState.PAUSED:
+            self.runState = RunState.LOOPING
+            # NN decision
+            self.scheduledEvents.append(Clock.schedule_interval(self.NNdecision, self.movespeed))
+            self.scheduledFunctions.append(self.NNdecision)
+            # move
+            self.scheduledEvents.append(Clock.schedule_interval(self.move, self.movespeed))
+            self.scheduledFunctions.append(self.move)
+
+    def pause(self):
+        if self.runState == RunState.LOOPING:
+            self.runState = RunState.PAUSED
+            for event in self.scheduledEvents.copy():
+                Clock.unschedule(event)
+                self.scheduledEvents.remove(event)
+
+    def step(self):
+        if self.runState == RunState.PAUSED:
+            # NN decision
+            Clock.schedule_once(self.NNdecision, self.movespeed)
+            # move
+            Clock.schedule_once(self.move, self.movespeed)
 
     def setMoveSpeed(self, speed):
         for event in self.scheduledEvents:
@@ -139,18 +164,26 @@ class Snake(App):
     def key_handler(self, *args):
         try:
             key = args[1][1]
-            if self.valid_key(key):
+            if self.validMovementKey(key):
                 self.try_change_direction(self.key_direction_mapping(key))
             elif key == 'n':
                 self.setMoveSpeed(self.movespeed / 4)
             elif key == 'm':
                 self.setMoveSpeed(self.movespeed * 4)
+
+            elif key == 'j':
+                self.step()
+            elif key == 'k':
+                self.loop()
+            elif key == 'l':
+                self.pause()
+
             else:
                 raise KeyError
         except KeyError:
             pass
 
-    def valid_key(self, key):
+    def validMovementKey(self, key):
         if key not in ['left', 'up', 'right', 'down']:
             return False
         return True
