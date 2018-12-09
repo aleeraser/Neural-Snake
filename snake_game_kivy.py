@@ -297,4 +297,16 @@ class Snake(App):
 
 
 if __name__ == "__main__":
-    Snake().run()
+    print("")
+    print("Keys:")
+    print("- 'j' to perform a random step")
+    print("- 'k' for random directions")
+    print("- 'l' to stop random directions")
+    print("- 'n' to increase game speed")
+    print("- 'm' to decrease game speed")
+    print("")
+
+    try:
+        Snake().run()
+    except KeyboardInterrupt:
+        Snake().stop()
