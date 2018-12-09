@@ -16,11 +16,7 @@ SPRITE_SIZE = sp(20)
 COLS = int(Window.width / SPRITE_SIZE)
 ROWS = int(Window.height / SPRITE_SIZE)
 
-LENGHT = 4
-MOVESPEED = .05
-
 ALPHA = .5
-
 
 class Direction(Enum):
     LEFT, RIGHT, UP, DOWN = range(4)
@@ -50,8 +46,8 @@ class SnakeBlock(Block):
     pass
 
 
-# Dictionary of sprites. By using defaultdict we specify what to do if a sprite
-# is not already present (in this case, we create it).
+# Dictionary of sprites. By using defaultdict it is possible to specify what
+# to do if a sprite is not already present (in this case, create it).
 SPRITES = defaultdict(lambda: SnakeBlock())
 
 
@@ -64,11 +60,14 @@ class Score(Label):
 
 
 class Snake(App):
+    movespeed = .05
+    initial_lenght = 4
+
     sprite_size = kp.NumericProperty(SPRITE_SIZE)
 
     head = kp.ListProperty([0, 0])
     snake = kp.ListProperty()
-    lenght = kp.NumericProperty(LENGHT)
+    lenght = kp.NumericProperty(initial_lenght)
 
     score = kp.NumericProperty(0)
     deaths = kp.NumericProperty(0)
@@ -96,15 +95,30 @@ class Snake(App):
         self.scoreLabel = Score(markup=True, font_size='20sp')
         self.on_score()
 
-        Clock.schedule_interval(self.NNdecision, MOVESPEED)
-        Clock.schedule_interval(self.move, MOVESPEED)
+        self.scheduledFunctions = []
+        self.scheduledEvents = []
+        # NN decision
+        # self.scheduledEvents.append(Clock.schedule_interval(self.NNdecision, self.movespeed))
+        # self.scheduledFunctions.append(self.NNdecision)
+        # move
+        self.scheduledEvents.append(Clock.schedule_interval(self.move, self.movespeed))
+        self.scheduledFunctions.append(self.move)
+
+    def setMoveSpeed(self, speed):
+        for event in self.scheduledEvents:
+            Clock.unschedule(event)
+            self.scheduledEvents.remove(event)
+
+        self.movespeed = speed
+
+        for func in self.scheduledFunctions:
+            self.scheduledEvents.append(Clock.schedule_interval(func, self.movespeed))
 
     def updateScoreLabel(self):
         self.scoreLabel.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
 
     def on_resize(self, *args):
         Window.size = WINDOW_SIZE
-        # self.die()
 
     def on_keyboard_close(self):
         self.keyboard.unbind(on_key_down=self.key_handler)
@@ -127,6 +141,10 @@ class Snake(App):
             key = args[1][1]
             if self.valid_key(key):
                 self.try_change_direction(self.key_direction_mapping(key))
+            elif key == 'n':
+                self.setMoveSpeed(self.movespeed / 4)
+            elif key == 'm':
+                self.setMoveSpeed(self.movespeed * 4)
             else:
                 raise KeyError
         except KeyError:
@@ -144,9 +162,10 @@ class Snake(App):
             else:
                 self.direction = new_direction
                 self.block_input = True
+                # print("Direction: ", self.direction)
 
     def NNdecision(self, *args):
-        self.direction = random.choice(list(Direction))
+        self.try_change_direction(random.choice(list(Direction)))
 
     def move(self, *args):
         self.block_input = False
@@ -206,10 +225,10 @@ class Snake(App):
 
         # red animation for when the snake dies
         self.alpha = ALPHA
-        Animation(alpha=0, duration=MOVESPEED).start(self)
+        Animation(alpha=0, duration=self.movespeed).start(self)
 
         self.snake.clear()
-        self.lenght = LENGHT
+        self.lenght = self.initial_lenght
 
         self.score = 0
         self.deaths += 1
