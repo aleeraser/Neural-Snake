@@ -20,7 +20,7 @@ ALPHA = .5
 
 
 class Direction(Enum):
-    LEFT, RIGHT, UP, DOWN = range(4)
+    LEFT, UP, RIGHT, DOWN = range(4)
 
 
 class RunState(Enum):
@@ -29,15 +29,15 @@ class RunState(Enum):
 
 direction_values = {
     Direction.LEFT: [-1, 0],
-    Direction.RIGHT: [1, 0],
     Direction.UP: [0, 1],
+    Direction.RIGHT: [1, 0],
     Direction.DOWN: [0, -1]
 }
 
 direction_group = {
     Direction.LEFT: 'horizontal',
-    Direction.RIGHT: 'horizontal',
     Direction.UP: 'vertical',
+    Direction.RIGHT: 'horizontal',
     Direction.DOWN: 'vertical'
 }
 
@@ -80,8 +80,8 @@ class Snake(App):
     food = kp.ListProperty([0, 0])
     food_sprite = kp.ObjectProperty(Food)
 
-    direction = kp.ObjectProperty(random.choice(list(Direction)), options=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN))
-    buffer_direction = kp.ObjectProperty(random.choice(list(Direction)), allownone=True, options=(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN))
+    direction = kp.ObjectProperty(random.choice(list(Direction)), options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
+    buffer_direction = kp.ObjectProperty(random.choice(list(Direction)), allownone=True, options=(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN))
     block_input = kp.BooleanProperty(False)
 
     alpha = kp.NumericProperty(0)
@@ -156,10 +156,10 @@ class Snake(App):
     def key_direction_mapping(self, key):
         if key == 'left':
             return Direction.LEFT
-        elif key == 'right':
-            return Direction.RIGHT
         elif key == 'up':
             return Direction.UP
+        elif key == 'right':
+            return Direction.RIGHT
         elif key == 'down':
             return Direction.DOWN
         else:
