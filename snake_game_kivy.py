@@ -97,50 +97,50 @@ class Snake(App):
         self.food_sprite = Food()
         self.food = self.new_food_location
 
-        self.scoreLabel = Score(markup=True, font_size='20sp')
+        self.score_label = Score(markup=True, font_size='20sp')
         self.on_score()
 
-        self.scheduledFunctions = []
-        self.scheduledEvents = []
+        self.scheduled_functions = []
+        self.scheduled_events = []
 
-        self.runState = RunState.PAUSED
+        self.run_state = RunState.PAUSED
 
     def loop(self):
-        if self.runState == RunState.PAUSED:
-            self.runState = RunState.LOOPING
+        if self.run_state == RunState.PAUSED:
+            self.run_state = RunState.LOOPING
             # NN decision
-            self.scheduledEvents.append(Clock.schedule_interval(self.NNdecision, self.movespeed))
-            self.scheduledFunctions.append(self.NNdecision)
+            self.scheduled_events.append(Clock.schedule_interval(self.NN_decision, self.movespeed))
+            self.scheduled_functions.append(self.NN_decision)
             # move
-            self.scheduledEvents.append(Clock.schedule_interval(self.move, self.movespeed))
-            self.scheduledFunctions.append(self.move)
+            self.scheduled_events.append(Clock.schedule_interval(self.move, self.movespeed))
+            self.scheduled_functions.append(self.move)
 
     def pause(self):
-        if self.runState == RunState.LOOPING:
-            self.runState = RunState.PAUSED
-            for event in self.scheduledEvents.copy():
+        if self.run_state == RunState.LOOPING:
+            self.run_state = RunState.PAUSED
+            for event in self.scheduled_events.copy():
                 Clock.unschedule(event)
-                self.scheduledEvents.remove(event)
+                self.scheduled_events.remove(event)
 
     def step(self):
-        if self.runState == RunState.PAUSED:
+        if self.run_state == RunState.PAUSED:
             # NN decision
-            Clock.schedule_once(self.NNdecision, self.movespeed)
+            Clock.schedule_once(self.NN_decision, self.movespeed)
             # move
             Clock.schedule_once(self.move, self.movespeed)
 
-    def setMoveSpeed(self, speed):
-        for event in self.scheduledEvents:
+    def set_move_speed(self, speed):
+        for event in self.scheduled_events:
             Clock.unschedule(event)
-            self.scheduledEvents.remove(event)
+            self.scheduled_events.remove(event)
 
         self.movespeed = speed
 
-        for func in self.scheduledFunctions:
-            self.scheduledEvents.append(Clock.schedule_interval(func, self.movespeed))
+        for func in self.scheduled_functions:
+            self.scheduled_events.append(Clock.schedule_interval(func, self.movespeed))
 
-    def updateScoreLabel(self):
-        self.scoreLabel.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
+    def update_score_label(self):
+        self.score_label.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
 
     def on_resize(self, *args):
         Window.size = WINDOW_SIZE
@@ -164,12 +164,12 @@ class Snake(App):
     def key_handler(self, *args):
         try:
             key = args[1][1]
-            if self.validMovementKey(key):
+            if self.valid_movement_key(key):
                 self.try_change_direction(self.key_direction_mapping(key))
             elif key == 'n':
-                self.setMoveSpeed(self.movespeed / 4)
+                self.set_move_speed(self.movespeed / 4)
             elif key == 'm':
-                self.setMoveSpeed(self.movespeed * 4)
+                self.set_move_speed(self.movespeed * 4)
 
             elif key == 'j':
                 self.step()
@@ -183,7 +183,7 @@ class Snake(App):
         except KeyError:
             pass
 
-    def validMovementKey(self, key):
+    def valid_movement_key(self, key):
         if key not in ['left', 'up', 'right', 'down']:
             return False
         return True
@@ -197,7 +197,7 @@ class Snake(App):
                 self.block_input = True
                 # print("Direction: ", self.direction)
 
-    def NNdecision(self, *args):
+    def NN_decision(self, *args):
         self.try_change_direction(random.choice(list(Direction)))
 
     def move(self, *args):
@@ -217,9 +217,9 @@ class Snake(App):
 
     # called every time the score changes
     def on_score(self, *args):
-        self.updateScoreLabel()
-        if not self.scoreLabel.parent:
-            self.root.add_widget(self.scoreLabel)
+        self.update_score_label()
+        if not self.score_label.parent:
+            self.root.add_widget(self.score_label)
 
     # called every time the food changes
     def on_food(self, *args):
