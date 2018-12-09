@@ -130,18 +130,22 @@ class Snake(App):
             Clock.schedule_once(self.move, self.movespeed)
 
     def set_move_speed(self, speed):
+        # unschedule all the previously scheduled events
         for event in self.scheduled_events:
             Clock.unschedule(event)
             self.scheduled_events.remove(event)
 
+        # update speed
         self.movespeed = speed
 
+        # reschedule all the events with the updated speed
         for func in self.scheduled_functions:
             self.scheduled_events.append(Clock.schedule_interval(func, self.movespeed))
 
     def update_score_label(self):
         self.score_label.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
 
+    # called every time the window is resized
     def on_resize(self, *args):
         Window.size = WINDOW_SIZE
 
@@ -165,7 +169,7 @@ class Snake(App):
         try:
             key = args[1][1]
             if self.valid_movement_key(key):
-                self.try_change_direction(self.key_direction_mapping(key))
+                self.set_direction(self.key_direction_mapping(key))
             elif key == 'n':
                 self.set_move_speed(self.movespeed / 4)
             elif key == 'm':
@@ -184,11 +188,13 @@ class Snake(App):
             pass
 
     def valid_movement_key(self, key):
+        """Check if given parameter is a valid movement key. \nPossible values are:\n- left\n- up\n- right\n- down."""
         if key not in ['left', 'up', 'right', 'down']:
             return False
         return True
 
-    def try_change_direction(self, new_direction):
+    def set_direction(self, new_direction):
+        """Try to change the direction of the snake. In order for the direction to be changed, the given direction must be orthogonal with respect to the current one. If the direction has already been changed for the current frame, the given direction is buffered and scheduled for the next frame."""
         if direction_group[new_direction] != direction_group[self.direction]:
             if self.block_input:
                 self.buffer_direction = new_direction
@@ -198,41 +204,50 @@ class Snake(App):
                 # print("Direction: ", self.direction)
 
     def NN_decision(self, *args):
-        self.try_change_direction(random.choice(list(Direction)))
+        self.set_direction(random.choice(list(Direction)))
 
     def move(self, *args):
+        # release input block
         self.block_input = False
+
+        # calculate new head coords
         new_head = [sum(x) for x in zip(self.head, direction_values[self.direction])]
+
+        # check for collisions
         if not self.check_in_bounds(new_head) or new_head in self.snake:
             return self.die()
+
+        # check for food eaten
         if new_head == self.food:
             self.lenght += 1
             self.score += 1
-
             self.food = self.new_food_location
+
+        # check if a direction was previously buffered
         if self.buffer_direction:
-            self.try_change_direction(self.buffer_direction)
+            self.set_direction(self.buffer_direction)
             self.buffer_direction = None
+
         self.head = new_head
 
-    # called every time the score changes
     def on_score(self, *args):
+        """Called every time the `score` field changes"""
         self.update_score_label()
         if not self.score_label.parent:
             self.root.add_widget(self.score_label)
 
-    # called every time the food changes
     def on_food(self, *args):
+        """Called every time the `food` field changes."""
         self.food_sprite.coord = self.food
         if not self.food_sprite.parent:
             self.root.add_widget((self.food_sprite))
 
-    # called every time the head changes
     def on_head(self, *args):
+        """Called every time the `head` field changes."""
         self.snake = self.snake[-self.lenght:] + [self.head]
 
-    # called every time the snake changes
     def on_snake(self, *args):
+        """Called every time the `snake` field changes."""
         for index, coord in enumerate(self.snake):
             sprite = SPRITES[index]
             sprite.coord = coord
@@ -241,35 +256,43 @@ class Snake(App):
 
     @property
     def new_head_location(self):
+        # the '2' is beacuse the head cannot be within the borders
         return [random.randint(2, dim - 2) for dim in [COLS, ROWS]]
 
     @property
     def new_food_location(self):
         while True:
+            # generate new coords for food until they are valid (i.e. they don't overlap with a snake block)
             food = [random.randint(0, dim - 1) for dim in [COLS, ROWS]]
             if food not in self.snake and food != self.food:
                 return food
 
     def check_in_bounds(self, pos):
+        """Check if the given position is inside the boundaries."""
         return all(0 <= pos[x] < dim for x, dim in enumerate([COLS, ROWS]))
 
     def die(self):
+        # clear all the widgets of the canvas
         self.root.clear_widgets()
 
         # red animation for when the snake dies
         self.alpha = ALPHA
         Animation(alpha=0, duration=self.movespeed).start(self)
 
+        # remove all the snake blocks
         self.snake.clear()
         self.lenght = self.initial_lenght
 
+        # reset score
         self.score = 0
         self.deaths += 1
         self.on_score()
 
+        # generates new blocks
         self.head = self.new_head_location
         self.food = self.new_food_location
 
+        # the snake will now start moving in a new random direction
         self.direction = random.choice(list(Direction))
 
 
