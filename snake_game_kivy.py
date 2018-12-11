@@ -27,7 +27,7 @@ class RunState(Enum):
     PAUSED, LOOPING = range(2)
 
 
-direction_values = {
+direction_vector_map = {
     Direction.LEFT: [-1, 0],
     Direction.UP: [0, 1],
     Direction.RIGHT: [1, 0],
@@ -61,12 +61,12 @@ class Food(Block):
 
 
 class Score(Label):
-    coord = kp.ListProperty([2, ROWS - 2])
+    coord = kp.ListProperty([4, ROWS - 2])
 
 
 class Snake(App):
     movespeed = .05
-    initial_lenght = 4
+    initial_lenght = 4 - 1
 
     sprite_size = kp.NumericProperty(SPRITE_SIZE)
 
@@ -105,12 +105,14 @@ class Snake(App):
 
         self.run_state = RunState.PAUSED
 
+        self.done = False
+
     def loop(self):
         if self.run_state == RunState.PAUSED:
             self.run_state = RunState.LOOPING
             # NN decision
-            self.scheduled_events.append(Clock.schedule_interval(self.NN_decision, self.movespeed))
-            self.scheduled_functions.append(self.NN_decision)
+            self.scheduled_events.append(Clock.schedule_interval(self.set_random_direction, self.movespeed))
+            self.scheduled_functions.append(self.set_random_direction)
             # move
             self.scheduled_events.append(Clock.schedule_interval(self.move, self.movespeed))
             self.scheduled_functions.append(self.move)
@@ -122,12 +124,14 @@ class Snake(App):
                 Clock.unschedule(event)
                 self.scheduled_events.remove(event)
 
-    def step(self):
+    def step(self, action=None):
         if self.run_state == RunState.PAUSED:
-            # NN decision
-            Clock.schedule_once(self.NN_decision, self.movespeed)
-            # move
-            Clock.schedule_once(self.move, self.movespeed)
+            self.set_direction(action if action else self.generate_random_direction())
+            return self.move()
+
+    def generate_observation(self):
+        # print("Obs: ", self.done, self.score, self.snake, self.food)
+        return self.done, self.score, self.snake, self.food
 
     def set_move_speed(self, speed):
         # unschedule all the previously scheduled events
@@ -203,32 +207,58 @@ class Snake(App):
                 self.block_input = True
                 # print("Direction: ", self.direction)
 
-    def NN_decision(self, *args):
-        self.set_direction(random.choice(list(Direction)))
+    def generate_random_direction(self, *args):
+        return random.choice(list(Direction))
+
+    def set_random_direction(self, *args):
+        self.set_direction(self.generate_random_direction())
+
+    def get_direction_vector(self):
+        return direction_vector_map[self.direction]
+
+    def is_neighborhood_blocked(self):
+        direction_vector = self.get_direction_vector()
+
+        # turn vector left
+        left = [sum(x) for x in zip(self.head, [-direction_vector[1], direction_vector[0]])]
+        # keep direction
+        front = [sum(x) for x in zip(self.head, direction_vector)]
+        # turn vector right
+        right = [sum(x) for x in zip(self.head, [direction_vector[1], -direction_vector[0]])]
+
+        directions = [left, front, right]
+
+        return [int(not self.check_in_bounds(direction) or direction in self.snake) for direction in directions]
 
     def move(self, *args):
+        # release lock on nn action
+        self.done = False
+
         # release input block
         self.block_input = False
 
         # calculate new head coords
-        new_head = [sum(x) for x in zip(self.head, direction_values[self.direction])]
+        new_head = [sum(x) for x in zip(self.head, direction_vector_map[self.direction])]
 
         # check for collisions
         if not self.check_in_bounds(new_head) or new_head in self.snake:
-            return self.die()
+            self.done = True
+            self.die()
+        else:
+            # check for food eaten
+            if new_head == self.food:
+                self.lenght += 1
+                self.score += 1
+                self.food = self.new_food_location
 
-        # check for food eaten
-        if new_head == self.food:
-            self.lenght += 1
-            self.score += 1
-            self.food = self.new_food_location
+            # check if a direction was previously buffered
+            if self.buffer_direction:
+                self.set_direction(self.buffer_direction)
+                self.buffer_direction = None
 
-        # check if a direction was previously buffered
-        if self.buffer_direction:
-            self.set_direction(self.buffer_direction)
-            self.buffer_direction = None
+            self.head = new_head
 
-        self.head = new_head
+        return self.generate_observation()
 
     def on_score(self, *args):
         """Called every time the `score` field changes"""
