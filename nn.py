@@ -118,7 +118,6 @@ class SnakeNN:
     def test_model(self, model):
         steps_arr = []
         debug_info = []
-        terminate_execution = False
 
         for _ in range(self.test_games):
             steps = 0
@@ -166,22 +165,29 @@ class SnakeNN:
             # at the end of the turn save the number of steps performed
             steps_arr.append(steps)
 
-        self.save_data(message="Do you want to save debug data? (y|N)", dataList=debug_info, fileName="snake_nn.debug", terminate=terminate_execution)
+        self.save_data(message="Do you want to save debug data? (y|N)", dataList=debug_info, fileName="snake_nn.debug")
 
         print("Average steps:", mean(steps_arr))
         print(Counter(steps_arr))
 
-    def save_data(self, message="", model=None, dataList=None, fileName="", terminate=False):
+    def save_data(self, message="", model=None, trainData=None, dataList=None, fileName=""):
+        if not fileName:
+            print("Error, missing file name.")
+        elif not message:
+            raise Exception
+
         save_data = input(message)
         if str(save_data).lower() != 'y' and str(save_data).lower() != 'yes':
-            if terminate:
-                raise SystemExit
             return
 
-        if dataList:
+        if trainData:
+            with open(fileName, 'w') as file:
+                for data in trainData:
+                    file.write("[{} {} {} {}] --> {}\n".format(data[0][0], data[0][1], data[0][2], data[0][3], data[1]))
+        elif dataList:
             with open(fileName, 'w') as file:
                 for obj in dataList:
-                    file.write(str(obj))
+                    file.write(str(obj) + "\n")
         elif model:
             model.save(fileName)
 
