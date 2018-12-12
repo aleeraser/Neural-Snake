@@ -61,12 +61,12 @@ class Food(Block):
 
 
 class Score(Label):
-    coord = kp.ListProperty([4, ROWS - 2])
+    coord = kp.ListProperty([4, ROWS - 3])
 
 
 class Snake(App):
     movespeed = .05
-    initial_lenght = 4 - 1
+    initial_lenght = 6 - 1
 
     sprite_size = kp.NumericProperty(SPRITE_SIZE)
 
@@ -76,6 +76,7 @@ class Snake(App):
 
     score = kp.NumericProperty(0)
     deaths = kp.NumericProperty(0)
+    steps = kp.NumericProperty(0)
 
     food = kp.ListProperty([0, 0])
     food_sprite = kp.ObjectProperty(Food)
@@ -97,7 +98,7 @@ class Snake(App):
         self.food_sprite = Food()
         self.food = self.new_food_location
 
-        self.score_label = Score(markup=True, font_size='20sp')
+        self.stats_label = Score(markup=True, font_size='20sp')
         self.on_score()
 
         self.scheduled_functions = []
@@ -146,8 +147,8 @@ class Snake(App):
         for func in self.scheduled_functions:
             self.scheduled_events.append(Clock.schedule_interval(func, self.movespeed))
 
-    def update_score_label(self):
-        self.score_label.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "[/b]"
+    def update_stats_label(self):
+        self.stats_label.text = "[b]Score: " + str(self.score) + "\nDeaths: " + str(self.deaths) + "\nSteps: " + str(self.steps) + "[/b]"
 
     # called every time the window is resized
     def on_resize(self, *args):
@@ -208,7 +209,7 @@ class Snake(App):
                 # print("Direction: ", self.direction)
 
     def generate_random_direction(self, *args):
-        return random.choice(list(Direction))
+        return random.choice(list(Direction) + [self.direction] + [self.direction] + [self.direction])
 
     def set_random_direction(self, *args):
         self.set_direction(self.generate_random_direction())
@@ -258,13 +259,19 @@ class Snake(App):
 
             self.head = new_head
 
+        self.steps += 1
+
         return self.generate_observation()
 
     def on_score(self, *args):
         """Called every time the `score` field changes"""
-        self.update_score_label()
-        if not self.score_label.parent:
-            self.root.add_widget(self.score_label)
+        self.update_stats_label()
+        if not self.stats_label.parent:
+            self.root.add_widget(self.stats_label)
+
+    def on_steps(self, *args):
+        """Called every time the `steps` field changes"""
+        self.on_score(args)
 
     def on_food(self, *args):
         """Called every time the `food` field changes."""
@@ -302,6 +309,10 @@ class Snake(App):
         return all(0 <= pos[x] < dim for x, dim in enumerate([COLS, ROWS]))
 
     def die(self):
+        self.deaths += 1
+        self.restart()
+
+    def restart(self):
         # clear all the widgets of the canvas
         self.root.clear_widgets()
 
@@ -315,7 +326,7 @@ class Snake(App):
 
         # reset score
         self.score = 0
-        self.deaths += 1
+        self.steps = 0
         self.on_score()
 
         # generates new blocks
