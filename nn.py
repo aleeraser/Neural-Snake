@@ -59,36 +59,33 @@ class SnakeNN:
     def generate_training_data(self):
         training_data = []
         steps_arr = []
+
         for _ in range(self.initial_games):
-            try:
-                steps = 0
-                prev_observation = self.game.is_neighborhood_blocked()
-                for _ in range(self.goal_steps):
-                    # action: -1 (turn left), 0 (straight), 1 (turn right)
-                    # game action: Direction.[LEFT, UP, RIGHT, DOWN]
-                    action, game_action = self.generate_action()
+            steps = 0
+            prev_observation = self.game.is_neighborhood_blocked()
+            for _ in range(self.goal_steps):
+                # action: -1 (turn left), 0 (straight), 1 (turn right)
+                # game action: Direction.[LEFT, UP, RIGHT, DOWN]
+                action, game_action = self.generate_action()
 
-                    observation = np.append([action], prev_observation)
-                    done, _, _, _ = self.game.step(game_action)
-                    data = [observation, 1 - done]
+                observation = np.append([action], prev_observation)
+                done, _, _, _ = self.game.step(game_action)
+                data = [observation, 1 - done]
 
-                    training_data.append(data)
+                training_data.append(data)
 
-                    if done:
-                        break
-                    else:
-                        prev_observation = self.game.is_neighborhood_blocked()
-                        steps += 1
+                if done:
+                    break
+                else:
+                    prev_observation = self.game.is_neighborhood_blocked()
+                    steps += 1
 
-                    sleep(TRAIN_CLOCK)
-            except KeyboardInterrupt as e:
-                perform_training = input("Do you want to use the collected data to train the neural network? (y|N)")
-                if str(perform_training).lower() != 'y' and str(perform_training).lower() != 'yes':
-                    raise e
-                steps_arr.append(steps)
-                break
+                sleep(TRAIN_CLOCK)
 
             steps_arr.append(steps)
+
+        self.save_data(message="Do you want to save the collected training data? (y|N)", data=training_data, fileName="snake_nn.train")
+
         print("Average steps:", mean(steps_arr))
         print(Counter(steps_arr))
 
@@ -120,48 +117,72 @@ class SnakeNN:
 
     def test_model(self, model):
         steps_arr = []
+        debug_info = []
+        terminate_execution = False
+
         for _ in range(self.test_games):
             steps = 0
-            game_memory = []
             prev_observation = self.game.is_neighborhood_blocked()
             for i in range(self.goal_steps):
+                turn_debug_info = ""
                 predictions = []
 
-                print("Previous direction: {}".format(game.direction))
-
+                # for every possible action predict the probability of surviving
                 for action in range(-1, 2):
                     observation = np.append([action], prev_observation)
 
                     prediction = model.predict(np.array([observation]))
                     predictions.append(prediction)
 
-                    print("Action {} in state {}. Predicted survival: {}".format(action, observation, prediction))
+                    turn_debug_info += "Action {} in state {}. Predicted survival: {}\n".format(action, observation, prediction)
 
+                # choose the action with the best probability to survive
                 action = np.argmax(np.array(predictions))
 
                 # -1 because "action" is actually an index starting from 0
                 game_action = self.get_game_action(action - 1)
 
-                print("Decided to take action: {} ({})".format(action - 1, game_action))
-                # input()
+                turn_debug_info += "Decided to take action: {} ({})\n".format(action - 1, game_action)
 
                 done, _, _, _ = self.game.step(game_action)
-                game_memory.append([prev_observation, action])
                 if done:
-                    input()
+                    turn_debug_info += "--- Dead!\n\n"
+                    debug_info.append(turn_debug_info)
+
                     break
                 else:
                     prev_observation = self.game.is_neighborhood_blocked()
                     steps += 1
 
                 if i == 99:
-                    print("Reached 100 steps! Restarting...")
+                    turn_debug_info += "Reached 100 steps! Restarting...\n"
                     game.restart()
 
+                # save debug data
+                debug_info.append(turn_debug_info)
+
                 sleep(TEST_CLOCK)
+
+            # at the end of the turn save the number of steps performed
             steps_arr.append(steps)
+
+        self.save_data(message="Do you want to save debug data? (y|N)", data=debug_info, fileName="snake_nn.debug", terminate=terminate_execution)
+
         print("Average steps:", mean(steps_arr))
         print(Counter(steps_arr))
+
+    def save_data(self, message="", data=None, fileName="", terminate=False):
+        save_data = input(message)
+        if str(save_data).lower() != 'y' and str(save_data).lower() != 'yes':
+            if terminate:
+                raise SystemExit
+            return
+
+        with open(fileName, 'w') as file:
+            for obj in data:
+                file.write(str(obj))
+
+        print("Saved in {}!".format(fileName))
 
     def getModel(self):
         model = Sequential()
@@ -184,9 +205,6 @@ class SnakeNN:
     def train(self):
         self.waitForGUI()
         training_data = self.generate_training_data()
-        with open("snake_nn.train", 'w') as file:
-            for data in training_data:
-                file.write("[{} {} {} {}] --> {}\n".format(data[0][0], data[0][1], data[0][2], data[0][3], data[1]))
         nn_model = self.getModel()
         nn_model = self.train_model(training_data, nn_model)
         nn_model.save("snake_nn.model")
@@ -219,5 +237,5 @@ if __name__ == "__main__":
 
         nn_thread.start()
         game.run()
-    except (KeyboardInterrupt, SystemExit):
+    except SystemExit:
         sys.exit()
