@@ -209,7 +209,7 @@ class Snake(App):
                 # print("Direction: ", self.direction)
 
     def generate_random_direction(self, *args):
-        return random.choice(list(Direction) + [self.direction] + [self.direction] + [self.direction])
+        return random.choice(list(Direction))
 
     def set_random_direction(self, *args):
         self.set_direction(self.generate_random_direction())
