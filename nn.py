@@ -84,7 +84,7 @@ class SnakeNN:
 
             steps_arr.append(steps)
 
-        self.save_data(message="Do you want to save the collected training data? (y|N)", data=training_data, fileName="snake_nn.train")
+        self.save_data(message="Do you want to save the collected training data? (y|N)", dataList=training_data, fileName="snake_nn.train")
 
         print("Average steps:", mean(steps_arr))
         print(Counter(steps_arr))
@@ -166,21 +166,24 @@ class SnakeNN:
             # at the end of the turn save the number of steps performed
             steps_arr.append(steps)
 
-        self.save_data(message="Do you want to save debug data? (y|N)", data=debug_info, fileName="snake_nn.debug", terminate=terminate_execution)
+        self.save_data(message="Do you want to save debug data? (y|N)", dataList=debug_info, fileName="snake_nn.debug", terminate=terminate_execution)
 
         print("Average steps:", mean(steps_arr))
         print(Counter(steps_arr))
 
-    def save_data(self, message="", data=None, fileName="", terminate=False):
+    def save_data(self, message="", model=None, dataList=None, fileName="", terminate=False):
         save_data = input(message)
         if str(save_data).lower() != 'y' and str(save_data).lower() != 'yes':
             if terminate:
                 raise SystemExit
             return
 
-        with open(fileName, 'w') as file:
-            for obj in data:
-                file.write(str(obj))
+        if dataList:
+            with open(fileName, 'w') as file:
+                for obj in dataList:
+                    file.write(str(obj))
+        elif model:
+            model.save(fileName)
 
         print("Saved in {}!".format(fileName))
 
@@ -207,7 +210,7 @@ class SnakeNN:
         training_data = self.generate_training_data()
         nn_model = self.getModel()
         nn_model = self.train_model(training_data, nn_model)
-        nn_model.save("snake_nn.model")
+        self.save_data(message="Do you want to save the trained model? (y|N)", model=nn_model, fileName="snake_nn.model")
 
     def test(self):
         self.waitForGUI()
