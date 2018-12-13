@@ -214,22 +214,9 @@ class Snake(App):
     def set_random_direction(self, *args):
         self.set_direction(self.generate_random_direction())
 
-    def get_direction_vector(self):
+    @property
+    def direction_vector(self):
         return direction_vector_map[self.direction]
-
-    def is_neighborhood_blocked(self):
-        direction_vector = self.get_direction_vector()
-
-        # turn vector left
-        left = [sum(x) for x in zip(self.head, [-direction_vector[1], direction_vector[0]])]
-        # keep direction
-        front = [sum(x) for x in zip(self.head, direction_vector)]
-        # turn vector right
-        right = [sum(x) for x in zip(self.head, [direction_vector[1], -direction_vector[0]])]
-
-        directions = [left, front, right]
-
-        return [int(not self.check_in_bounds(direction) or direction in self.snake) for direction in directions]
 
     def move(self, *args):
         # release lock on nn action
