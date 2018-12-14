@@ -21,9 +21,10 @@
         [[choosen direction, left cell, front cell, right cell, angle], outcome]
 """
 
-# TODO: do not access Snake() object's fields directly
+# TODO: should not access Snake() object's fields directly
 
 import math
+import os
 import random
 import sys
 from collections import Counter
@@ -36,15 +37,19 @@ from keras.layers import Dense
 from keras.models import Sequential, load_model
 from keras.optimizers import Adam
 
-from snake_game_kivy import Direction, Snake
-
 TRAIN_CLOCK = 0.004
 TEST_CLOCK = 0.03
 
-TRAIN_GAMES = 30000
-TEST_GAMES = 50
+# TRAIN_GAMES = 30000
+TRAIN_GAMES = 1
+# TEST_GAMES = 50
+TEST_GAMES = 1
 GOAL_SCORE = 200
 LEARNING_RATE = 1E-2
+
+
+class FileNotSavedException(Exception):
+    pass
 
 
 class SnakeNN:
@@ -116,7 +121,7 @@ class SnakeNN:
             steps_log.append(steps)
             scores_log.append(score)
 
-        self.save_data(message="Save the collected training data? (y|N)", dataList=training_data, fileName="snake_nn.train")
+        self.save_data(message="Save the collected training data? (y|N) > ", dataList=training_data, fileName="snake_nn.train")
 
         print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
@@ -268,7 +273,7 @@ class SnakeNN:
             steps_log.append(steps)
             scores_log.append(score)
 
-        self.save_data(message="Save debug data? (y|N)", dataList=debug_info, fileName="snake_nn.debug")
+        self.save_data(message="Save debug data? (y|N) > ", dataList=debug_info, fileName="snake_nn.debug")
 
         print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
@@ -278,36 +283,47 @@ class SnakeNN:
         print("Number of (re)training data: {}".format(len(retraining_data)))
         return retraining_data
 
-    def save_data(self, message="", model=None, trainData=None, dataList=None, fileName=""):
-        if not fileName:
-            print("Error, missing file name.")
-        elif not message:
-            raise Exception
+    def save_data(self, message="", model=None, debugTrainData=None, dataList=None, fileName=""):
+        try:
+            if not fileName:
+                raise Exception("Error, missing file name.")
+            elif not message:
+                raise Exception("No message specified.")
 
-        save_data_input = input(message)
-        save_data_input = str(save_data_input).lower()
-        while save_data_input not in ['y', 'yes', 'n', 'no', '']:
-            save_data_input = input("Wrong input.\nUse collected data to re-train the neural network? [y|N]")
-            save_data_input = str(save_data_input).lower()
+            save_data_input = str(input(message)).lower()
+            while save_data_input not in ["y", "yes", "n", "no", ""]:
+                save_data_input = str(input("Wrong input.\n {}".format(message))).lower()
 
-        if save_data_input in ['n', 'no', ""]:
-            print("No data saved!")
+            if save_data_input in ["n", "no", ""]:
+                raise FileNotSavedException
+
+            if os.path.exists(fileName):
+                overwrite_message = "File '{}' already exists. Overwrite? [y|N] > ".format(fileName)
+                overwrite = input(overwrite_message)
+                while overwrite not in ["y", "yes", "n", "no", ""]:
+                    overwrite = input("Wrong input. {}".format(overwrite_message))
+
+                if overwrite in ["n", "no", ""]:
+                    raise FileNotSavedException
+
+            if debugTrainData and not dataList and not model:
+                with open(fileName, 'w') as file:
+                    for data in debugTrainData:
+                        file.write("[{} {} {} {}] --> {}\n".format(data[0][0], data[0][1], data[0][2], data[0][3], data[1]))
+            elif dataList and not debugTrainData and not model:
+                with open(fileName, 'w') as file:
+                    for obj in dataList:
+                        file.write(str(obj) + "\n")
+            elif model and not dataList and not debugTrainData:
+                model.save(fileName)
+            else:
+                raise Exception("Too many arguments given. '" + fileName + "' not saved.")
+
+            print("Saved in '{}'.\n".format(fileName))
+
+        except FileNotSavedException:
+            print("No data saved.\n")
             return
-
-        if trainData and not dataList and not model:
-            with open(fileName, 'w') as file:
-                for data in trainData:
-                    file.write("[{} {} {} {}] --> {}\n".format(data[0][0], data[0][1], data[0][2], data[0][3], data[1]))
-        elif dataList and not trainData and not model:
-            with open(fileName, 'w') as file:
-                for obj in dataList:
-                    file.write(str(obj) + "\n")
-        elif model and not dataList and not trainData:
-            model.save(fileName)
-        else:
-            raise Exception("Too many arguments given. Not saving.")
-
-        print("Saved in {}!".format(fileName))
 
     def getModel(self):
         model = Sequential()
@@ -336,7 +352,7 @@ class SnakeNN:
 
         print("Training finished.")
 
-        self.save_data(message="Save the trained model? (y|N)", model=nn_model, fileName="snake_nn.model")
+        self.save_data(message="Save the trained model? (y|N) > ", model=nn_model, fileName="snake_nn.model")
 
     def test(self):
         self.waitForGUI()
@@ -344,13 +360,12 @@ class SnakeNN:
         nn_model = load_model("snake_nn.model")
         training_data = self.test_model(nn_model)
 
-        retrain_input = input("Use collected data to re-train the neural network? [y|N]")
-        retrain_input = str(retrain_input).lower()
-        while retrain_input not in ['y', 'yes', 'n', 'no', '']:
-            retrain_input = input("Wrong input.\nUse collected data to re-train the neural network? [y|N]")
-            retrain_input = str(retrain_input).lower()
+        retrain_message = "Use collected data to re-train the neural network? [y|N] > "
+        retrain_input = str(input(retrain_message)).lower()
+        while retrain_input not in ["y", "yes", "n", "no", ""]:
+            retrain_input = str(input("Wrong input.\n {}").format(retrain_message)).lower()
 
-        if retrain_input in ['y', 'yes']:
+        if retrain_input in ["y", "yes"]:
             self.train(training_data)
 
         print("Testing finished.")
@@ -367,13 +382,24 @@ class SnakeNN:
 
 
 if __name__ == "__main__":
+    mode_selection_message = "Type:\n• '1' for training\n• '2' for testing\n• '3' for both\n> "
+    mode = input(mode_selection_message)
+    while mode not in ["1", "2", "3"]:
+        mode = input("Wrong input. {}".format(mode_selection_message))
+
     try:
+        # import of kivy environment is deferred since kivy automatically loads its components on import
+        from snake_game_kivy import Snake, Direction
+
         game = Snake()
         nn = SnakeNN(game=game)
 
-        # nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train)
-        nn_thread = Thread(name="nn_thread", daemon=True, target=nn.test)
-        # nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train_and_test)
+        if mode == "1":
+            nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train)
+        elif mode == "2":
+            nn_thread = Thread(name="nn_thread", daemon=True, target=nn.test)
+        elif mode == "3":
+            nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train_and_test)
 
         nn_thread.start()
         game.run()
