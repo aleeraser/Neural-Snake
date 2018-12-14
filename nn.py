@@ -42,11 +42,11 @@ from keras.utils import to_categorical
 from snake_game_kivy import Direction, Snake
 
 TRAIN_CLOCK = 0.004
-TEST_CLOCK = 0.1
+TEST_CLOCK = 0.03
 
 
 class SnakeNN:
-    def __init__(self, train_games=20000, test_games=50, goal_score=100, learning_rate=1e-2, game=None):
+    def __init__(self, train_games=30000, test_games=50, goal_score=200, learning_rate=1e-2, game=None):
         self.train_games = train_games
         self.test_games = test_games
         self.goal_score = goal_score
@@ -116,9 +116,9 @@ class SnakeNN:
 
         self.save_data(message="Save the collected training data? (y|N)", dataList=training_data, fileName="snake_nn.train")
 
-        print("Average steps:", mean(steps_log))
+        print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
-        print('Average score:', mean(scores_log))
+        print("Average score: {}, max: {}".format(mean(scores_log), max(scores_log)))
         print(Counter(scores_log))
 
         print("Number of training data: {}".format(len(training_data)))
@@ -198,7 +198,8 @@ class SnakeNN:
 
             prev_food_distance = self.get_food_distance()
 
-            for i in range(self.goal_steps):
+            i = 0
+            while True:
                 turn_debug_info = ""
                 predictions = []
 
@@ -222,6 +223,8 @@ class SnakeNN:
                 observation = np.append([action], prev_observation)
                 done, score, snake, food = self.game.step(game_action)
 
+                i += 1
+
                 if done:
                     turn_debug_info += "--- Dead!\n\n"
                     turn_debug_info += "\tsteps: {}\n".format(steps)
@@ -236,6 +239,10 @@ class SnakeNN:
 
                     break
                 else:
+                    if score == self.goal_score:
+                        retraining_data.append([observation, 1])
+                        break
+
                     food_distance = self.get_food_distance()
                     if score > prev_score or food_distance < prev_food_distance:
                         # 1: score increased or distance to food decreased
@@ -249,10 +256,6 @@ class SnakeNN:
 
                     steps += 1
 
-                if i == self.goal_steps:
-                    turn_debug_info += "Reached {} steps! Restarting...\n".format(self.goal_steps)
-                    game.restart()
-
                 # save debug data
                 debug_info.append(turn_debug_info)
 
@@ -264,9 +267,9 @@ class SnakeNN:
 
         self.save_data(message="Save debug data? (y|N)", dataList=debug_info, fileName="snake_nn.debug")
 
-        print("Average steps:", mean(steps_log))
+        print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
-        print('Average score:', mean(scores_log))
+        print("Average score: {}, max: {}".format(mean(scores_log), max(scores_log)))
         print(Counter(scores_log))
 
         print("Number of (re)training data: {}".format(len(retraining_data)))
@@ -280,11 +283,13 @@ class SnakeNN:
 
         save_data_input = input(message)
         save_data_input = str(save_data_input).lower()
-        if save_data_input != 'y' and save_data_input != 'yes':
+        while save_data_input not in ['y', 'yes', 'n', 'no', '']:
+            save_data_input = input("Wrong input.\nUse collected data to re-train the neural network? [y|N]")
+            save_data_input = str(save_data_input).lower()
+
+        if save_data_input in ['n', 'no', ""]:
+            print("No data saved!")
             return
-        elif save_data_input != 'n' and save_data_input != 'no':
-            print("Wrong input.")
-            return self.save_data(message=message, model=model, trainData=trainData, dataList=dataList, fileName=fileName)
 
         if trainData and not dataList and not model:
             with open(fileName, 'w') as file:
@@ -294,7 +299,7 @@ class SnakeNN:
             with open(fileName, 'w') as file:
                 for obj in dataList:
                     file.write(str(obj) + "\n")
-        elif model and not dataList and not model:
+        elif model and not dataList and not trainData:
             model.save(fileName)
         else:
             raise Exception("Too many arguments given. Not saving.")
@@ -338,13 +343,13 @@ class SnakeNN:
 
         print("Testing finished.")
 
-        save_data_input = input("Use collected data to re-train the neural network? [y|N]")
-        save_data_input = str(save_data_input).lower()
-        while save_data_input not in ['y', 'yes', 'n', 'no', '']:
-            save_data_input = input("Wrong input.\nUse collected data to re-train the neural network? [y|N]")
-            save_data_input = str(save_data_input).lower()
+        retrain_input = input("Use collected data to re-train the neural network? [y|N]")
+        retrain_input = str(retrain_input).lower()
+        while retrain_input not in ['y', 'yes', 'n', 'no', '']:
+            retrain_input = input("Wrong input.\nUse collected data to re-train the neural network? [y|N]")
+            retrain_input = str(retrain_input).lower()
 
-        if save_data_input in ['y', 'yes']:
+        if retrain_input in ['y', 'yes']:
             self.train(training_data)
 
     def train_and_test(self):
@@ -363,8 +368,8 @@ if __name__ == "__main__":
         game = Snake()
         nn = SnakeNN(game=game)
 
-        nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train)
-        # nn_thread = Thread(name="nn_thread", daemon=True, target=nn.test)
+        # nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train)
+        nn_thread = Thread(name="nn_thread", daemon=True, target=nn.test)
         # nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train_and_test)
 
         nn_thread.start()
