@@ -27,30 +27,32 @@ import math
 import random
 import sys
 from collections import Counter
-from random import randint
 from statistics import mean
 from threading import Thread
 from time import sleep
-from traceback import print_exc
 
 import numpy as np
-from keras.layers import Activation, Dense, InputLayer
+from keras.layers import Dense
 from keras.models import Sequential, load_model
 from keras.optimizers import Adam
-from keras.utils import to_categorical
 
 from snake_game_kivy import Direction, Snake
 
 TRAIN_CLOCK = 0.004
 TEST_CLOCK = 0.03
 
+TRAIN_GAMES = 30000
+TEST_GAMES = 50
+GOAL_SCORE = 200
+LEARNING_RATE = 1E-2
+
 
 class SnakeNN:
-    def __init__(self, train_games=30000, test_games=50, goal_score=200, learning_rate=1e-2, game=None):
-        self.train_games = train_games
-        self.test_games = test_games
-        self.goal_score = goal_score
-        self.learning_rate = learning_rate
+    def __init__(self, game=None):
+        self.train_games = TRAIN_GAMES
+        self.test_games = TEST_GAMES
+        self.goal_score = GOAL_SCORE
+        self.learning_rate = LEARNING_RATE
         self.vector_direction_map = [
             [[-1, 0], Direction.LEFT],
             [[0, 1], Direction.UP],
@@ -72,7 +74,7 @@ class SnakeNN:
             steps = 0
 
             # observation from snake game
-            _, prev_score, snake, food = self.game.generate_observation()
+            _, prev_score, _, _ = self.game.generate_observation()
 
             # observation from nn agent
             prev_observation = self.generate_observation()
@@ -87,7 +89,7 @@ class SnakeNN:
                 action, game_action = self.generate_action()
 
                 observation = np.append([action], prev_observation)
-                done, score, snake, food = self.game.step(game_action)
+                done, score, _, _ = self.game.step(game_action)
 
                 if done:
                     # -1: snake is dead
@@ -189,6 +191,7 @@ class SnakeNN:
 
         for _ in range(self.test_games):
             steps = 0
+            score = 0
 
             # observation from snake game
             _, prev_score, snake, food = self.game.generate_observation()
@@ -341,8 +344,6 @@ class SnakeNN:
         nn_model = load_model("snake_nn.model")
         training_data = self.test_model(nn_model)
 
-        print("Testing finished.")
-
         retrain_input = input("Use collected data to re-train the neural network? [y|N]")
         retrain_input = str(retrain_input).lower()
         while retrain_input not in ['y', 'yes', 'n', 'no', '']:
@@ -351,6 +352,8 @@ class SnakeNN:
 
         if retrain_input in ['y', 'yes']:
             self.train(training_data)
+
+        print("Testing finished.")
 
     def train_and_test(self):
         self.train()
