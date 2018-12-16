@@ -11,10 +11,10 @@ from kivy.metrics import sp
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
-WINDOW_SIZE = [800, 600]
+WINDOW_SIZE = [600, 600]
 SPRITE_SIZE = sp(20)
-COLS = int(Window.width / SPRITE_SIZE)
-ROWS = int(Window.height / SPRITE_SIZE)
+COLS = int(WINDOW_SIZE[0] * 2 / SPRITE_SIZE)
+ROWS = int(WINDOW_SIZE[1] * 2 / SPRITE_SIZE)
 
 ALPHA = .5
 
@@ -61,7 +61,7 @@ class Food(Block):
 
 
 class Score(Label):
-    coord = kp.ListProperty([4, ROWS - 3])
+    coord = kp.ListProperty([4, COLS - 3])
 
 
 class Snake(App):
@@ -69,6 +69,8 @@ class Snake(App):
     initial_lenght = 6 - 1
 
     sprite_size = kp.NumericProperty(SPRITE_SIZE)
+
+    Window.size = WINDOW_SIZE
 
     head = kp.ListProperty([0, 0])
     snake = kp.ListProperty()
@@ -88,7 +90,7 @@ class Snake(App):
     alpha = kp.NumericProperty(0)
 
     def on_start(self):
-        Window.size = WINDOW_SIZE
+        print("Cols: {}, Rows: {}".format(COLS, ROWS))
 
         self.keyboard = Window.request_keyboard(self.on_keyboard_close, self.root)
         self.keyboard.bind(on_key_down=self.key_handler)
@@ -111,9 +113,6 @@ class Snake(App):
     def loop(self):
         if self.run_state == RunState.PAUSED:
             self.run_state = RunState.LOOPING
-            # NN decision
-            self.scheduled_events.append(Clock.schedule_interval(self.set_random_direction, self.movespeed))
-            self.scheduled_functions.append(self.set_random_direction)
             # move
             self.scheduled_events.append(Clock.schedule_interval(self.move, self.movespeed))
             self.scheduled_functions.append(self.move)
@@ -181,7 +180,7 @@ class Snake(App):
                 self.set_move_speed(self.movespeed * 4)
 
             elif key == 'j':
-                self.step()
+                self.step(self.direction)
             elif key == 'k':
                 self.loop()
             elif key == 'l':
