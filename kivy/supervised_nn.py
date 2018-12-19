@@ -109,7 +109,7 @@ class SnakeNN:
                         training_data.append([observation, 1])
                     else:
                         # 0: snake is alive but chose wrong direction
-                        training_data.append([observation, 0.5])
+                        training_data.append([observation, 0])
 
                     prev_observation = self.generate_observation()
                     prev_food_distance = food_distance
@@ -257,7 +257,7 @@ class SnakeNN:
                         retraining_data.append([observation, 1])
                     else:
                         # 0: snake is alive but chose wrong direction
-                        retraining_data.append([observation, 0.5])
+                        retraining_data.append([observation, 0])
 
                     prev_observation = self.generate_observation()
                     prev_food_distance = food_distance
