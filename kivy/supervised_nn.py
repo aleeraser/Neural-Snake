@@ -40,10 +40,8 @@ from keras.optimizers import Adam
 TRAIN_CLOCK = 0.004
 TEST_CLOCK = 0.03
 
-# TRAIN_GAMES = 30000
-TRAIN_GAMES = 1
-# TEST_GAMES = 50
-TEST_GAMES = 1
+TRAIN_GAMES = 30000
+TEST_GAMES = 50
 GOAL_SCORE = 200
 LEARNING_RATE = 1E-2
 
@@ -53,11 +51,11 @@ class FileNotSavedException(Exception):
 
 
 class SnakeNN:
-    def __init__(self, game=None):
-        self.train_games = TRAIN_GAMES
-        self.test_games = TEST_GAMES
-        self.goal_score = GOAL_SCORE
-        self.learning_rate = LEARNING_RATE
+    def __init__(self, train_games=TRAIN_GAMES, test_games=TEST_GAMES, goal_score=GOAL_SCORE, learning_rate=LEARNING_RATE, game=None):
+        self.train_games = train_games
+        self.test_games = test_games
+        self.goal_score = goal_score
+        self.learning_rate = learning_rate
         self.vector_direction_map = [
             [[-1, 0], Direction.LEFT],
             [[0, 1], Direction.UP],
@@ -111,7 +109,7 @@ class SnakeNN:
                         training_data.append([observation, 1])
                     else:
                         # 0: snake is alive but chose wrong direction
-                        training_data.append([observation, 0])
+                        training_data.append([observation, 0.5])
 
                     prev_observation = self.generate_observation()
                     prev_food_distance = food_distance
@@ -121,7 +119,9 @@ class SnakeNN:
             steps_log.append(steps)
             scores_log.append(score)
 
-        self.save_data(message="Save the collected training data? (y|N) > ", dataList=training_data, fileName="snake_nn.train")
+        self.notify(title="SnakeNN", text="Data generation completed.")
+
+        self.save_data(message="Save the collected training data? (y|N) > ", dataList=training_data, fileName="supervised.snake_nn.train")
 
         print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
@@ -257,7 +257,7 @@ class SnakeNN:
                         retraining_data.append([observation, 1])
                     else:
                         # 0: snake is alive but chose wrong direction
-                        retraining_data.append([observation, 0])
+                        retraining_data.append([observation, 0.5])
 
                     prev_observation = self.generate_observation()
                     prev_food_distance = food_distance
@@ -273,7 +273,9 @@ class SnakeNN:
             steps_log.append(steps)
             scores_log.append(score)
 
-        self.save_data(message="Save debug data? (y|N) > ", dataList=debug_info, fileName="snake_nn.debug")
+        self.notify(title="SnakeNN", text="Testing finished completed.")
+
+        self.save_data(message="Save debug data? (y|N) > ", dataList=debug_info, fileName="supervised.snake_nn.debug")
 
         print("Average steps: {}, max: {}".format(mean(steps_log), max(steps_log)))
         print(Counter(steps_log))
@@ -287,24 +289,23 @@ class SnakeNN:
         try:
             if not fileName:
                 raise Exception("Error, missing file name.")
-            elif not message:
-                raise Exception("No message specified.")
 
-            save_data_input = str(input(message)).lower()
-            while save_data_input not in ["y", "yes", "n", "no", ""]:
-                save_data_input = str(input("Wrong input.\n {}".format(message))).lower()
+            if message:
+                save_data_input = str(input(message)).lower()
+                while save_data_input not in ["y", "yes", "n", "no", ""]:
+                    save_data_input = str(input("Wrong input.\n {}".format(message))).lower()
 
-            if save_data_input in ["n", "no", ""]:
-                raise FileNotSavedException
-
-            if os.path.exists(fileName):
-                overwrite_message = "File '{}' already exists. Overwrite? [y|N] > ".format(fileName)
-                overwrite = input(overwrite_message)
-                while overwrite not in ["y", "yes", "n", "no", ""]:
-                    overwrite = input("Wrong input. {}".format(overwrite_message))
-
-                if overwrite in ["n", "no", ""]:
+                if save_data_input in ["n", "no", ""]:
                     raise FileNotSavedException
+
+                if os.path.exists(fileName):
+                    overwrite_message = "File '{}' already exists. Overwrite? [y|N] > ".format(fileName)
+                    overwrite = input(overwrite_message)
+                    while overwrite not in ["y", "yes", "n", "no", ""]:
+                        overwrite = input("Wrong input. {}".format(overwrite_message))
+
+                    if overwrite in ["n", "no", ""]:
+                        raise FileNotSavedException
 
             if debugTrainData and not dataList and not model:
                 with open(fileName, 'w') as file:
@@ -325,6 +326,11 @@ class SnakeNN:
             print("No data saved.\n")
             return
 
+    def notify(self, title, text):
+        os.system("""
+            osascript -e 'display notification "{}" with title "{}" sound name "{}"'
+            """.format(text, title, "Glass.aiff"))
+
     def getModel(self):
         model = Sequential()
 
@@ -341,6 +347,10 @@ class SnakeNN:
         X = np.array([i[0] for i in training_data])
         y = np.array([i[1] for i in training_data])
         model.fit(X, y, epochs=20, shuffle=True)
+
+        self.notify(title="SnakeNN", text="Training finished.")
+        print("Training finished.")
+
         return model
 
     def train(self, training_data=None):
@@ -350,15 +360,15 @@ class SnakeNN:
         nn_model = self.getModel()
         nn_model = self.train_model(training_data, nn_model)
 
-        print("Training finished.")
-
-        self.save_data(message="Save the trained model? (y|N) > ", model=nn_model, fileName="snake_nn.model")
+        self.save_data(message=None, model=nn_model, fileName="supervised.snake_nn.model")
 
     def test(self):
         self.waitForGUI()
         nn_model = self.getModel()
-        nn_model = load_model("snake_nn.model")
+        nn_model = load_model("supervised.snake_nn.model")
         training_data = self.test_model(nn_model)
+
+        print("Testing finished.")
 
         retrain_message = "Use collected data to re-train the neural network? [y|N] > "
         retrain_input = str(input(retrain_message)).lower()
@@ -367,8 +377,6 @@ class SnakeNN:
 
         if retrain_input in ["y", "yes"]:
             self.train(training_data)
-
-        print("Testing finished.")
 
     def train_and_test(self):
         self.train()
@@ -382,17 +390,35 @@ class SnakeNN:
 
 
 if __name__ == "__main__":
+    sys.stdout.flush()
+
     mode_selection_message = "Type:\n• '1' for training\n• '2' for testing\n• '3' for both\n> "
     mode = input(mode_selection_message)
     while mode not in ["1", "2", "3"]:
         mode = input("Wrong input. {}".format(mode_selection_message))
+
+    train_games, test_games = TRAIN_GAMES, TEST_GAMES
+
+    if mode in ["1", "3"]:
+        msg = "Type number of desired training games (default: {}) > ".format(TRAIN_GAMES)
+        try:
+            train_games = eval(input(msg))
+        except Exception:
+            pass
+
+    if mode in ["2", "3"]:
+        msg = "Type number of desired test games (default: {}) > ".format(TEST_GAMES)
+        try:
+            test_games = eval(input(msg))
+        except Exception:
+            pass
 
     try:
         # import of kivy environment is deferred since kivy automatically loads its components on import
         from snake_game_kivy import Snake, Direction
 
         game = Snake()
-        nn = SnakeNN(game=game)
+        nn = SnakeNN(train_games=train_games, test_games=test_games, game=game)
 
         if mode == "1":
             nn_thread = Thread(name="nn_thread", daemon=True, target=nn.train)
