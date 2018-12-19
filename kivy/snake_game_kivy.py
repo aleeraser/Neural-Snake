@@ -92,6 +92,9 @@ class Snake(App):
     def on_start(self):
         print("Cols: {}, Rows: {}".format(COLS, ROWS))
 
+        self.cols = COLS
+        self.rows = ROWS
+
         self.keyboard = Window.request_keyboard(self.on_keyboard_close, self.root)
         self.keyboard.bind(on_key_down=self.key_handler)
         Window.bind(on_resize=self.on_resize)
@@ -337,3 +340,4 @@ if __name__ == "__main__":
         Snake().run()
     except KeyboardInterrupt:
         Snake().stop()
+        raise KeyboardInterrupt
