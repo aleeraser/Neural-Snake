@@ -138,6 +138,9 @@ class SnakeNN:
                     action_index = self.predict(state)
                     new_state, reward, done = self.act(action_index)
 
+                    # self.game.logger.info("State: {}".format(new_state))
+                    # self.game.logger.info("Action: {}, reward: {}".format(self.game_action_map[action_index], reward))
+
                     if gui:
                         self.game.draw()
 
@@ -151,12 +154,14 @@ class SnakeNN:
                         self.epsilon -= EPS_DECAY
                         self.epsilon = max(EPS_MIN, self.epsilon)
 
-                    if run % 10000 == 0:
-                        self.save_progress(run)
+                    state = new_state
 
                     if done:
                         self.game.logger.info("Run: {}, eps: {}, steps: {}".format(run, self.epsilon, step))
                         break
+
+                if run % 5000 == 0:
+                    self.save_progress(run)
 
             except Exception:
                 self.game.terminate()
@@ -182,12 +187,20 @@ class SnakeNN:
         state, _, _ = self.game.reset()
         state = np.reshape(state, (1, ) + self.observation_space)
 
-        done = False
-        while not done:
-            action_index = self.predict(state)
-            _, _, done = self.act(action_index)
-            if gui:
-                self.game.draw()
+        try:
+            while not os.path.exists("terminate"):
+                action_index = self.predict(state)
+                state, _, done = self.act(action_index)
+                state = np.reshape(state, (1, ) + self.observation_space)
+                if gui:
+                    self.game.draw()
+                    sleep(0.07)
+        except KeyboardInterrupt:
+            pass
+
+        if self.game:
+            self.game.terminate()
+            self.game = None
 
     def save_progress(self, run):
         if not os.path.exists("model"):
@@ -302,7 +315,7 @@ if __name__ == "__main__":
 
     try:
         parser = argparse.ArgumentParser()
-        parser.add_argument("-g", "--gui", type=bool, default=False)
+        parser.add_argument("-g", "--gui", action="store_true", default=False)
         parser.add_argument("-m", "--mode", choices=["train", "test"], default="train")
         args = parser.parse_args()
 
