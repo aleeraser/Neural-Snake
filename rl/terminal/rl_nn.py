@@ -190,7 +190,7 @@ class SnakeNN:
         try:
             while not os.path.exists("terminate"):
                 action_index = self.predict(state)
-                state, _, done = self.act(action_index)
+                state, _, _ = self.act(action_index)
                 state = np.reshape(state, (1, ) + self.observation_space)
                 if gui:
                     self.game.draw()
