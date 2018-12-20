@@ -48,7 +48,7 @@ BYTES_MAX = 2**31 - 1
 
 
 class SnakeNN:
-    def __init__(self, learning_rate=LEARNING_RATE, game=None):
+    def __init__(self, learning_rate=LEARNING_RATE):
         self.game = SnakeGame()
 
         self.learning_rate = learning_rate
@@ -202,7 +202,7 @@ class SnakeNN:
             self.game.terminate()
             self.game = None
 
-    def save_progress(self, run):
+    def save_progress(self):
         if not os.path.exists("model"):
             os.makedirs("model")
 
