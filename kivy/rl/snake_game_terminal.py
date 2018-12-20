@@ -176,12 +176,14 @@ class SnakeGame:
                     key = self.window.getch()
 
                     if key == ord('j'):
-                        self.step()
+                        np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+                        self.logger.info(self.step())
                         # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
                     elif key == KEY_ESC:
                         break
                     else:
-                        self.step()
+                        # self.step()
+                        time.sleep(GAME_CLOCK)
                 else:
                     self.step()
                     # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
@@ -253,11 +255,11 @@ class SnakeGame:
         food_m = np.zeros(shape=(self.cols, self.rows))
         snake_m = np.zeros(shape=(self.cols, self.rows))
 
-        head_m[self.cols - 1 - self.head[1], self.head[0]] = 1
-        food_m[self.cols - 1 - self.food[1], self.food[0]] = 1
+        head_m[self.head[1], self.head[0]] = 1
+        food_m[self.food[1], self.food[0]] = 1
         for coord in self.snake:
             if coord != self.head:
-                snake_m[self.cols - 1 - coord[1], coord[0]] = 1
+                snake_m[coord[1], coord[0]] = 1
 
         # print("• Head:\n{}\n\n\n• Food:\n{}\n\n\n• Snake:\n{}\n.".format(head_m, food_m, snake_m))
 
@@ -295,6 +297,9 @@ class SnakeGame:
 
             # Restore teminal to its original operating mode
             curses.endwin()
+
+        # in order to avoid ZeroDivisionError
+        self.deaths = self.deaths if self.deaths != 0 else 1
 
         self.logger.info("Stats:")
         self.logger.info("• avg score: {}".format(round(sum(self.score_arr) / self.deaths)))
