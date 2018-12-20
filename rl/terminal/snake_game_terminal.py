@@ -155,46 +155,49 @@ class SnakeGame:
     def direction_vector(self):
         return direction_vector_map[self.direction]
 
-    def start(self, gui=False):
+    def start(self, gui=False, interactive=False):
         self.logger.info("start")
         self.food = self.new_food_location
 
-        key = None
+        if interactive:
+            key = None
 
         if gui:
             self.render = True
             self.init_game_frame()
             self.draw()
 
-            key = self.window.getch()
+            if interactive:
+                key = self.window.getch()
 
-        self.start_time = time.time()
+        if interactive:
+            self.start_time = time.time()
 
-        try:
-            while True:
-                if self.render:
-                    key = self.window.getch()
+            try:
+                while True:
+                    if self.render:
+                        key = self.window.getch()
 
-                    if key == ord('j'):
-                        np.set_printoptions(threshold=np.inf, linewidth=np.inf)
-                        self.logger.info(self.step())
-                        # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
-                    elif key == KEY_ESC:
-                        break
+                        if key == ord('j'):
+                            np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+                            self.logger.info(self.step())
+                            # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
+                        elif key == KEY_ESC:
+                            break
+                        else:
+                            # self.step()
+                            time.sleep(GAME_CLOCK)
                     else:
-                        # self.step()
+                        self.step()
+                        # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
                         time.sleep(GAME_CLOCK)
-                else:
-                    self.step()
-                    # self.logger.info("Food: {}, snake: {}".format(self.food, self.snake))
-                    time.sleep(GAME_CLOCK)
 
-                if self.render:
-                    self.draw()
-        except KeyboardInterrupt:
-            pass
+                    if self.render:
+                        self.draw()
+            except KeyboardInterrupt:
+                pass
 
-        self.terminate()
+            self.terminate()
 
     def set_direction(self, new_direction):
         if direction_group[new_direction] != direction_group[self.direction]:
@@ -271,7 +274,7 @@ class SnakeGame:
     def reset(self):
         # if 'reset' wasn't called because of a death
         if self.reward != -1:
-            self.logger.info("Reset. Score: {}, steps: {}\n".format(self.score, self.steps))
+            self.logger.info("Reset. Score: {}, steps: {}".format(self.score, self.steps))
 
         self.snake.clear()
         self.lenght = INITIAL_LENGHT
@@ -307,20 +310,22 @@ class SnakeGame:
         self.logger.info("• deaths: {}".format(self.deaths))
         self.logger.info("• avg steps: {}".format(round(sum(self.steps_arr) / self.deaths)))
         self.logger.info("• max steps: {}".format(max(self.steps_arr)))
-        self.logger.info("• execution time: {} s".format(round(time.time() - self.start_time, 2)))
+        if self.start_time:
+            self.logger.info("• execution time: {} s".format(round(time.time() - self.start_time, 2)))
         self.logger.info("---------------------------------- end")
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-g', '--gui', type=bool, default=False)
-    args = parser.parse_args()
-
     try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-g', '--gui', type=bool, default=False)
+        parser.add_argument('-i', '--interactive', type=bool, default=False)
+        args = parser.parse_args()
+
         game = SnakeGame()
 
-        game.start(gui=args.gui)
+        game.start(gui=args.gui, interactive=args.interactive)
     except Exception as e:
         game.terminate()
         traceback.print_exc()
