@@ -214,7 +214,7 @@ class SnakeNN:
             self.model.load_weights("model/weights.h5")
             print("Loaded weights")
 
-        ## read
+        # workaround for pickle file size limitation on OSX
         if os.path.isfile("model/memory"):
             bytes_in = bytearray(0)
             input_size = os.path.getsize("model/memory")
