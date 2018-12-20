@@ -6,9 +6,13 @@
 
 # TODO: should not access Snake() object's fields directly
 
+import argparse
+import csv
 import os
+import pickle
 import random
 import sys
+import traceback
 from collections import Counter, deque
 from threading import Thread
 from time import sleep
@@ -19,187 +23,217 @@ from keras.layers import (Conv2D, Dense, Dropout, Flatten, MaxPooling2D,
 from keras.models import Sequential, load_model
 from keras.optimizers import Adam
 
-from results.logger import Logger
+from snake_game_terminal import Direction, SnakeGame
 
-# GAME_CLOCK = 0.004
-GAME_CLOCK = 0.008
-
-# TRAIN_GAMES = 30000
-# TEST_GAMES = 50
-# GOAL_SCORE = 200
-
-# hyperparameters
+# GAMMA = 0.99
 GAMMA = 0.95
-LEARNING_RATE = 1e-2  # 0.01. NOTE: try also 1e-3 and 1e-6
+LEARNING_RATE = 1e-6  # NOTE: try also 1e-3 and 1e-2 for faster learning
 
-MEMORY_SIZE = 1000000
-# BATCH_SIZE = 20
-BATCH_SIZE = 50
+MEMORY_SIZE = 100000
+MIN_MEMORY_LENGTH = 5000
+BATCH_SIZE = 32
 
-EXPLORATION_MAX = 1.0
-# EXPLORATION_MIN = 0.01
-EXPLORATION_MIN = 0.1
-EXPLORATION_STEPS = 850000
-EXPLORATION_DECAY = (EXPLORATION_MAX - EXPLORATION_MIN) / EXPLORATION_STEPS
+EPS_MAX = 1.0
+# EPS_MIN = 0.1
+EPS_MIN = 0.01
+EPS_TEST = 0.02
+# EPS_STEPS = 500000
+EPS_STEPS = 85000
+EPS_DECAY = (EPS_MAX - EPS_MIN) / EPS_STEPS
 
 ACTION_SPACE = 4
 LAYERS = 3
 
-
-class FileNotSavedException(Exception):
-    pass
+BYTES_MAX = 2**31 - 1
 
 
 class SnakeNN:
-    # def __init__(self, train_games=TRAIN_GAMES, test_games=TEST_GAMES, goal_score=GOAL_SCORE, learning_rate=LEARNING_RATE, game=None):
     def __init__(self, learning_rate=LEARNING_RATE, game=None):
-        if game is None:
-            raise Exception("Game not connected.")
+        self.game = SnakeGame()
 
-        self.game = game
-
-        # self.train_games = train_games
-        # self.test_games = test_games
-        # self.goal_score = goal_score
         self.learning_rate = learning_rate
-        # self.vector_direction_map = [
-        #     [[-1, 0], Direction.LEFT],
-        #     [[0, 1], Direction.UP],
-        #     [[1, 0], Direction.RIGHT],
-        #     [[0, -1], Direction.DOWN]
-        # ]
         self.game_action_map = list(Direction)
 
-        self.epsilon = EXPLORATION_MAX
+        self.epsilon = EPS_MAX
 
         self.action_space = ACTION_SPACE
         self.observation_space = (LAYERS, self.game.rows, self.game.cols)
+
+        # FIFO
         self.memory = deque(maxlen=MEMORY_SIZE)
 
-        self.model = None
-        self.model_file = "rl.snake_nn.model"
-        self.model_loaded = False
+        self.model = self.build_model()
+        self.load_progress()
 
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-
-    def act(self, state):
+    def predict(self, state):
+        # eps-greedy
         if np.random.rand() < self.epsilon:
             return random.randrange(self.action_space)
 
         q_values = self.model.predict(state)
         return np.argmax(q_values[0])
 
-    def experience_replay(self):
-        if len(self.memory) < BATCH_SIZE:
-            return
+    def act(self, action_index):
+        action = self.game_action_map[action_index]
+        new_state, reward, done = self.game.step(action)
+
+        # self.game.logger.info("Action: {},\treward: {}".format(action, reward))
+
+        return new_state, reward, done
+
+    def observe(self, state):
         batch = random.sample(self.memory, BATCH_SIZE)
+        input_states = np.zeros((BATCH_SIZE,) + state.shape[1:])
+        q_values = np.zeros((BATCH_SIZE, ACTION_SPACE))
 
-        for state, action, reward, state_next, terminal in batch:
-            q_update = reward
-            if not terminal:
-                q_update = (reward + GAMMA * np.amax(self.model.predict(state_next)[0]))
-            q_values = self.model.predict(state)
-            q_values[0][action] = q_update
-            self.model.fit(state, q_values, verbose=0)
+        # experience replay
+        for i in range(BATCH_SIZE):
+            state = batch[i][0]
+            action_index = batch[i][1]
+            reward = batch[i][2]
+            new_state = batch[i][3]
+            done = batch[i][4]
 
-        self.epsilon *= EXPLORATION_DECAY
-        self.epsilon = max(EXPLORATION_MIN, self.epsilon)
+            input_states[i] = state
+            q_values[i] = self.model.predict(state)
 
-    def main_loop(self):
-        self.waitForGUI()
+            if done:
+                q_values[i, action_index] = reward
+            else:
+                q_update = self.model.predict(new_state)  # [0]
+                q_values[i, action_index] = reward + GAMMA * np.max(q_update)
 
-        # since we must use multi-threading in order to control kivy, we also need to instantiate
-        # the model into the same thread where it will be used, i.e. we cannot do this in __init__
-        self.model = self.build_model()
-        if os.path.exists(self.model_file):
-            self.model = load_model(self.model_file)
-            self.model_loaded = True
-            print("Loaded model '{}'".format(self.model_file))
+        loss = self.model.train_on_batch(input_states, q_values)
+        # self.game.logger.info("Loss for this iteration: {}".format(loss))
+        return loss
 
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.appendleft((state, action, reward, next_state, done))
+        if len(self.memory) > MEMORY_SIZE:
+            self.memory.pop()
+
+    def train(self, gui):
         np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 
-        logger = Logger("Snake")
+        if gui:
+            self.game.start(gui)
 
         run = 0
         while True:
+            if os.path.exists("terminate"):
+                break
+
             try:
                 run += 1
 
-                # print("Observation space: {}, Action space: {}".format(self.observation_space, self.action_space))
-
                 # state is a 3 layer 30x30 np matrix
-                state, _, _ = self.game.restart()
-                # print("State size: {}".format(state.shape))
+                state, _, _ = self.game.reset()
 
-                # print(state)
                 state = np.reshape(state, (1, ) + self.observation_space)
-                # state = np.array([1, state])
 
                 step = 0
                 while True:
-                    sleep(GAME_CLOCK)
-
                     step += 1
-                    # render() ?
 
-                    action = self.act(state)
-                    # print(action)
+                    action_index = self.predict(state)
+                    new_state, reward, done = self.act(action_index)
 
-                    state_next, reward, terminal = self.game.step(self.game_action_map[action])
-                    if reward == 1:
-                        print("Food!")
+                    if gui:
+                        self.game.draw()
 
-                    state_next = np.reshape(state_next, (1, ) + self.observation_space)
-                    # state_next = np.array([1, state_next])
+                    new_state = np.reshape(new_state, (1, ) + self.observation_space)
+                    self.remember(state, action_index, reward, new_state, done)
 
-                    self.remember(state, action, reward, state_next, terminal)
-                    state = state_next
+                    if len(self.memory) >= MIN_MEMORY_LENGTH:
+                        self.observe(new_state)
 
-                    if terminal:
-                        print("Run: {}, eps: {}, steps: {}".format(run, self.epsilon, step))
-                        logger.log(step, run)
+                        # eps annealing
+                        self.epsilon -= EPS_DECAY
+                        self.epsilon = max(EPS_MIN, self.epsilon)
+
+                    if run % 10000 == 0:
+                        self.save_progress(run)
+
+                    if done:
+                        self.game.logger.info("Run: {}, eps: {}, steps: {}".format(run, self.epsilon, step))
                         break
 
-                    self.experience_replay()
-
-                if run % 50 == 0:
-                    self.save_data(self.model, self.model_file, overwrite=True)
-
-            except KeyboardInterrupt:
-                self.save_data(self.model, self.model_file)
-                print("Terminating...")
+            except Exception:
+                self.game.terminate()
+                self.game = None
+                traceback.print_exc()
                 break
 
-    def save_data(self, model, fileName, message=None, overwrite=False):
-        try:
-            if not fileName:
-                raise Exception("Error, missing file name.")
+        if self.game:
+            self.game.terminate()
+            self.game = None
 
-            if message:
-                save_data_input = str(input(message)).lower()
-                while save_data_input not in ["y", "yes", "n", "no", ""]:
-                    save_data_input = str(input("Wrong input.\n {}".format(message))).lower()
+        self.save_progress(run)
+        print("Terminating...")
 
-                if save_data_input in ["n", "no", ""]:
-                    raise FileNotSavedException
+    def test(self, gui):
+        # no random actions
+        self.epsilon = 0
 
-                if os.path.exists(fileName) and not overwrite:
-                    overwrite_message = "File '{}' already exists. Overwrite? [y|N] > ".format(fileName)
-                    overwrite = input(overwrite_message)
-                    while overwrite not in ["y", "yes", "n", "no", ""]:
-                        overwrite = input("Wrong input. {}".format(overwrite_message))
+        if gui:
+            self.game.start(gui)
 
-                    if overwrite in ["n", "no", ""]:
-                        raise FileNotSavedException
+        # state is a 3 layer 30x30 np matrix
+        state, _, _ = self.game.reset()
+        state = np.reshape(state, (1, ) + self.observation_space)
 
-            model.save(fileName)
+        done = False
+        while not done:
+            action_index = self.predict(state)
+            _, _, done = self.act(action_index)
+            if gui:
+                self.game.draw()
 
-            print("Saved in '{}'.\n".format(fileName))
+    def save_progress(self, run):
+        if not os.path.exists("model"):
+            os.makedirs("model")
 
-        except FileNotSavedException:
-            print("No data saved.\n")
-            return
+        self.model.save_weights("model/weights.h5", overwrite=True)
+        print("Saved weights")
+
+        # workaround for pickle file size limitation on OSX
+        bytes_out = pickle.dumps(self.memory)
+        with open("model/memory", "wb") as memory_file:
+            for idx in range(0, len(bytes_out), BYTES_MAX):
+                memory_file.write(bytes_out[idx:idx + BYTES_MAX])
+            print("Saved memory")
+
+        with open("model/parameters.csv", "w") as parameters:
+            writer = csv.writer(parameters)
+            writer.writerow(["epsilon", self.epsilon])
+
+        print("Saved model")
+
+    def load_progress(self):
+        if os.path.isfile("model/weights.h5"):
+            self.model.load_weights("model/weights.h5")
+            print("Loaded weights")
+
+        ## read
+        if os.path.isfile("model/memory"):
+            bytes_in = bytearray(0)
+            input_size = os.path.getsize("model/memory")
+            with open("model/memory", 'rb') as memory_file:
+                for _ in range(0, input_size, BYTES_MAX):
+                    bytes_in += memory_file.read(BYTES_MAX)
+            self.memory = pickle.loads(bytes_in)
+            print("Loaded memory")
+
+        if os.path.isfile("model/parameters.csv"):
+            with open("model/parameters.csv") as parameters:
+                reader = csv.reader(parameters)
+                for row in reader:
+                    try:
+                        self.epsilon = float(row[1])
+                    except ValueError:
+                        print("Cannot load parameter '{}' with value '{}'".format(row[0], row[1]))
+
+        print("Loaded model")
 
     def notify(self, title, text):
         os.system("""
@@ -263,25 +297,20 @@ class SnakeNN:
 
         return model
 
-    def waitForGUI(self):
-        for i in reversed(range(3)):
-            print("Starting in {}".format(i))
-            sleep(1)
-        print()
-
 
 if __name__ == "__main__":
 
     try:
-        # import of kivy environment is deferred since kivy automatically loads its components on import
-        from snake_game_kivy import Snake, Direction
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-g", "--gui", type=bool, default=False)
+        parser.add_argument("-m", "--mode", choices=["train", "test"], default="train")
+        args = parser.parse_args()
 
-        game = Snake()
-        nn = SnakeNN(game=game)
+        nn = SnakeNN()
+        if args.mode == "train":
+            nn.train(gui=args.gui)
+        else:
+            nn.test(gui=args.gui)
 
-        nn_thread = Thread(name="nn_thread", daemon=True, target=nn.main_loop)
-
-        nn_thread.start()
-        game.run()
-    except SystemExit:
+    except Exception:
         sys.exit()
