@@ -2,6 +2,7 @@ import random
 from collections import defaultdict
 from enum import Enum
 
+import numpy as np
 from kivy import properties as kp
 from kivy.animation import Animation
 from kivy.app import App
@@ -20,6 +21,11 @@ ALPHA = .5
 
 
 class Direction(Enum):
+    """Directions:
+• LEFT(0)
+• UP (1)
+• RIGHT (2)
+• DOWN (3)"""
     LEFT, UP, RIGHT, DOWN = range(4)
 
 
@@ -89,11 +95,11 @@ class Snake(App):
 
     alpha = kp.NumericProperty(0)
 
+    cols = COLS
+    rows = ROWS
+
     def on_start(self):
         print("Cols: {}, Rows: {}".format(COLS, ROWS))
-
-        self.cols = COLS
-        self.rows = ROWS
 
         self.keyboard = Window.request_keyboard(self.on_keyboard_close, self.root)
         self.keyboard.bind(on_key_down=self.key_handler)
@@ -112,6 +118,7 @@ class Snake(App):
         self.run_state = RunState.PAUSED
 
         self.done = False
+        self.reward = 0
 
     def loop(self):
         if self.run_state == RunState.PAUSED:
@@ -134,7 +141,27 @@ class Snake(App):
 
     def generate_observation(self):
         # print("Obs: ", self.done, self.score, self.snake, self.food)
-        return self.done, self.score, self.snake, self.food
+        # state, reward, terminal
+        return self.get_state(), float(self.reward), self.done
+
+    def get_state(self):
+        # np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+
+        # print("Head: {}, Food: {}, Snake: {}.".format(self.head, self.food, self.snake))
+
+        head_m = np.zeros(shape=(self.cols, self.rows))
+        food_m = np.zeros(shape=(self.cols, self.rows))
+        snake_m = np.zeros(shape=(self.cols, self.rows))
+
+        head_m[self.cols - 1 - self.head[1], self.head[0]] = 1
+        food_m[self.cols - 1 - self.food[1], self.food[0]] = 1
+        for coord in self.snake:
+            if coord != self.head:
+                snake_m[self.cols - 1 - coord[1], coord[0]] = 1
+
+        # print("• Head:\n{}\n\n\n• Food:\n{}\n\n\n• Snake:\n{}\n.".format(head_m, food_m, snake_m))
+
+        return np.array([head_m, food_m, snake_m])
 
     def set_move_speed(self, speed):
         # unschedule all the previously scheduled events
@@ -223,6 +250,7 @@ class Snake(App):
     def move(self, *args):
         # release lock on nn action
         self.done = False
+        self.reward = 0
 
         # release input block
         self.block_input = False
@@ -233,12 +261,14 @@ class Snake(App):
         # check for collisions
         if not self.check_in_bounds(new_head) or new_head in self.snake:
             self.done = True
+            self.reward = -1
             self.die()
         else:
             # check for food eaten
             if new_head == self.food:
                 self.lenght += 1
                 self.score += 1
+                self.reward = 1
                 self.food = self.new_food_location
 
             # check if a direction was previously buffered
@@ -322,16 +352,18 @@ class Snake(App):
         self.head = self.new_head_location
         self.food = self.new_food_location
 
-        # the snake will now start moving in a new random direction
-        self.direction = random.choice(list(Direction))
+        # # the snake will now start moving in a new random direction
+        # self.direction = random.choice(list(Direction))
+
+        return self.generate_observation()
 
 
 if __name__ == "__main__":
     print("")
     print("Keys:")
-    print("- 'j' to perform a random step")
-    print("- 'k' for random directions")
-    print("- 'l' to stop random directions")
+    print("- 'j' to perform a single step")
+    print("- 'k' for continuous play")
+    print("- 'l' to stop continuous play")
     print("- 'n' to increase game speed")
     print("- 'm' to decrease game speed")
     print("")
