@@ -160,8 +160,8 @@ class SnakeNN:
                         self.game.logger.info("Run: {}, eps: {}, steps: {}".format(run, self.epsilon, step))
                         break
 
-                if run % 5000 == 0:
-                    self.save_progress(run)
+                if run % 5000 == 0 or os.path.exists("save"):
+                    self.save_progress()
 
             except Exception:
                 self.game.terminate()
@@ -173,7 +173,7 @@ class SnakeNN:
             self.game.terminate()
             self.game = None
 
-        self.save_progress(run)
+        self.save_progress()
         print("Terminating...")
 
     def test(self, gui):
@@ -243,6 +243,8 @@ class SnakeNN:
                 for row in reader:
                     try:
                         self.epsilon = float(row[1])
+                        assert float(row[1]) == self.epsilon
+                        print("Loaded epsilon: {}".format(self.epsilon))
                     except ValueError:
                         print("Cannot load parameter '{}' with value '{}'".format(row[0], row[1]))
 
