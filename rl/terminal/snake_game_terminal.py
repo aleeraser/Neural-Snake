@@ -319,8 +319,8 @@ if __name__ == "__main__":
 
     try:
         parser = argparse.ArgumentParser()
-        parser.add_argument('-g', '--gui', type=bool, default=False)
-        parser.add_argument('-i', '--interactive', type=bool, default=False)
+        parser.add_argument("-g", "--gui", action="store_true", default=False)
+        parser.add_argument("-i", "--interactive", action="store_true", default=False)
         args = parser.parse_args()
 
         game = SnakeGame()
