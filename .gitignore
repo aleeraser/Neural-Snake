@@ -120,3 +120,5 @@ dmypy.json
 test.*
 
 *.csv
+rl/terminal/model/memory
+snake_game_terminal.py.log*
