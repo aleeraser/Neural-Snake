@@ -71,6 +71,7 @@ class SnakeNN:
             return random.randrange(self.action_space)
 
         q_values = self.model.predict(state)
+        # self.game.logger.info("q-values: {}".format(q_values))
         return np.argmax(q_values[0])
 
     def act(self, action_index):
@@ -128,7 +129,6 @@ class SnakeNN:
 
                 # state is a 3 layer 30x30 np matrix
                 state, _, _ = self.game.reset()
-
                 state = np.reshape(state, (1, ) + self.observation_space)
 
                 step = 0
@@ -137,6 +137,7 @@ class SnakeNN:
 
                     action_index = self.predict(state)
                     new_state, reward, done = self.act(action_index)
+                    new_state = np.reshape(new_state, (1, ) + self.observation_space)
 
                     # self.game.logger.info("State: {}".format(new_state))
                     # self.game.logger.info("Action: {}, reward: {}".format(self.game_action_map[action_index], reward))
@@ -144,7 +145,6 @@ class SnakeNN:
                     if gui:
                         self.game.draw()
 
-                    new_state = np.reshape(new_state, (1, ) + self.observation_space)
                     self.remember(state, action_index, reward, new_state, done)
 
                     if len(self.memory) >= MIN_MEMORY_LENGTH:
@@ -219,6 +219,10 @@ class SnakeNN:
         with open("model/parameters.csv", "w") as parameters:
             writer = csv.writer(parameters)
             writer.writerow(["epsilon", self.epsilon])
+
+        # TODO: test this
+        if os.path.exists("save"):
+            os.remove("save")
 
         print("Saved model")
 
